@@ -1,4 +1,4 @@
-# Giri Quantization Project: MoE Routing Drift
+# MSML 605 - Routing Drift
 
 This project implements Giri's quantization deliverable:
 
