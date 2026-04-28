@@ -20,10 +20,9 @@ console = Console()
 
 
 @dataclass
-class AmoghMetrics:
+class Metrics:
     """
     Complete metrics record for one (model, run).
-    This is exactly what Amogh hands to the rest of the team.
     """
     model_name: str
 
@@ -40,7 +39,7 @@ class AmoghMetrics:
 
 class MetricsCollector:
     """
-    Aggregates ModelGraphBreakReport + CompileBenchmarkReport into AmoghMetrics.
+    Aggregates ModelGraphBreakReport + CompileBenchmarkReport into Metrics.
     Persists results to JSON and writes the best_compile_mode recommendation.
 
     Usage
@@ -57,7 +56,7 @@ class MetricsCollector:
     def __init__(self):
         self._graph_break_reports: Dict[str, ModelGraphBreakReport] = {}
         self._compile_reports:     Dict[str, CompileBenchmarkReport] = {}
-        self._metrics:             Dict[str, AmoghMetrics] = {}
+        self._metrics:             Dict[str, Metrics] = {}
 
 
     def add_graph_break_report(self, report: ModelGraphBreakReport) -> None:
@@ -104,7 +103,7 @@ class MetricsCollector:
                 "compile_vram_overhead_mb": result.compile_vram_overhead_mb,
             }
 
-        self._metrics[model_name] = AmoghMetrics(
+        self._metrics[model_name] = Metrics(
             model_name         = model_name,
             total_graph_breaks = gb.total_breaks,
             total_subgraphs    = gb.total_subgraphs,
@@ -154,16 +153,16 @@ class MetricsCollector:
 
 
 
-    def get(self, model_name: str) -> Optional[AmoghMetrics]:
+    def get(self, model_name: str) -> Optional[Metrics]:
         return self._metrics.get(model_name)
 
-    def all_metrics(self) -> Dict[str, AmoghMetrics]:
+    def all_metrics(self) -> Dict[str, Metrics]:
         return dict(self._metrics)
 
 
     def print_summary(self) -> None:
         """Print the full metrics table to console."""
-        console.rule("[bold cyan]Amogh Full Metrics Summary")
+        console.rule("[bold cyan] Full Metrics Summary")
 
         for model_name, m in self._metrics.items():
             console.print(f"\n[bold]Model: {model_name}[/bold]")
