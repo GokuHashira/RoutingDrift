@@ -26,7 +26,8 @@ class CompileModeResult:
     model_name:       str
     mode:             str            
     compile_time_s:   float          
-    latencies_ms:     List[float]   
+    latencies_ms:     List[float]
+    p50_ms:           float
     p90_ms:           float
     p99_ms:           float
     throughput_tps:   float          
