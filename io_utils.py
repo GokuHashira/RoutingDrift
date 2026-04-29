@@ -88,13 +88,14 @@ def save_summary_md(
             [
                 "## Results",
                 "",
-                "| Precision | Routing Similarity (RS) | Jaccard Drift | Overlap@k | Selection Shift |",
+                "| Variant | Routing Similarity (RS) | Jaccard Drift | Overlap@k | Selection Shift |",
                 "|---|---:|---:|---:|---:|",
             ]
         )
         for row in rows:
+            variant_label = row.get("variant", row.get("precision", "n/a"))
             lines.append(
-                f"| {row['precision']} | {row['routing_similarity_rs']:.6f} | {row['jaccard_drift']:.6f} | {row['overlap_at_k']:.6f} | {row['selection_shift']:.6f} |"
+                f"| {variant_label} | {row['routing_similarity_rs']:.6f} | {row['jaccard_drift']:.6f} | {row['overlap_at_k']:.6f} | {row['selection_shift']:.6f} |"
             )
 
         lines.extend(

@@ -5,3 +5,6 @@ bitsandbytes
 safetensors
 sentencepiece
 protobuf
+numpy
+matplotlib
+lm-eval

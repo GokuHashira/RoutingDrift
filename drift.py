@@ -85,6 +85,53 @@ def _collect_row_level_scores(
     return rs_scores, overlap_scores
 
 
+def _collect_row_level_scores_for_module(
+    baseline_calls: List[torch.Tensor],
+    quantized_calls: List[torch.Tensor],
+) -> tuple[list[float], list[float]]:
+    """Module-local version of row-level score collection."""
+    rs_scores: list[float] = []
+    overlap_scores: list[float] = []
+
+    min_calls = min(len(baseline_calls), len(quantized_calls))
+
+    for i in range(min_calls):
+        base = _flatten_route_tensor(baseline_calls[i])
+        quant = _flatten_route_tensor(quantized_calls[i])
+
+        min_rows = min(base.shape[0], quant.shape[0])
+        for row_idx in range(min_rows):
+            b_set = set(base[row_idx].tolist())
+            q_set = set(quant[row_idx].tolist())
+
+            union = len(b_set | q_set)
+            intersection = len(b_set & q_set)
+
+            rs = (intersection / union) if union > 0 else 1.0
+            rs_scores.append(rs)
+
+            k = max(base.shape[1], quant.shape[1], 1)
+            overlap_scores.append(intersection / k)
+
+        extra_rows = abs(base.shape[0] - quant.shape[0])
+        if extra_rows > 0:
+            rs_scores.extend([0.0] * extra_rows)
+            overlap_scores.extend([0.0] * extra_rows)
+
+    if len(baseline_calls) > min_calls:
+        for extra in baseline_calls[min_calls:]:
+            n_rows = _flatten_route_tensor(extra).shape[0]
+            rs_scores.extend([0.0] * n_rows)
+            overlap_scores.extend([0.0] * n_rows)
+    elif len(quantized_calls) > min_calls:
+        for extra in quantized_calls[min_calls:]:
+            n_rows = _flatten_route_tensor(extra).shape[0]
+            rs_scores.extend([0.0] * n_rows)
+            overlap_scores.extend([0.0] * n_rows)
+
+    return rs_scores, overlap_scores
+
+
 def compute_routing_similarity_rs(
     baseline_routes: RoutesByModule,
     quantized_routes: RoutesByModule,
@@ -127,3 +174,62 @@ def summarize_research_metrics(
         "overlap_at_k": overlap,
         "selection_shift": 1.0 - overlap,
     }
+
+
+def compute_layerwise_metrics(
+    baseline_routes: RoutesByModule,
+    quantized_routes: RoutesByModule,
+) -> dict[str, dict[str, float]]:
+    """
+    Compute drift metrics per router/gate module (layer-level view).
+    """
+    results: dict[str, dict[str, float]] = {}
+    module_names = sorted(set(baseline_routes.keys()) | set(quantized_routes.keys()))
+
+    for module_name in module_names:
+        base_calls = baseline_routes.get(module_name, [])
+        quant_calls = quantized_routes.get(module_name, [])
+
+        rs_scores, overlap_scores = _collect_row_level_scores_for_module(base_calls, quant_calls)
+
+        if rs_scores:
+            rs = sum(rs_scores) / len(rs_scores)
+            overlap = sum(overlap_scores) / len(overlap_scores)
+        else:
+            rs = 0.0
+            overlap = 0.0
+
+        results[module_name] = {
+            "routing_similarity_rs": rs,
+            "jaccard_drift": 1.0 - rs,
+            "overlap_at_k": overlap,
+            "selection_shift": 1.0 - overlap,
+            "num_rows": float(len(rs_scores)),
+        }
+
+    return results
+
+
+def build_layerwise_rows(
+    baseline_routes: RoutesByModule,
+    quantized_routes: RoutesByModule,
+    variant: str,
+) -> list[dict[str, float | str]]:
+    """
+    Build row-oriented layer metrics table for CSV/heatmaps.
+    """
+    per_layer = compute_layerwise_metrics(baseline_routes, quantized_routes)
+    rows: list[dict[str, float | str]] = []
+    for module_name, metrics in per_layer.items():
+        rows.append(
+            {
+                "variant": variant,
+                "module": module_name,
+                "routing_similarity_rs": metrics["routing_similarity_rs"],
+                "jaccard_drift": metrics["jaccard_drift"],
+                "overlap_at_k": metrics["overlap_at_k"],
+                "selection_shift": metrics["selection_shift"],
+                "num_rows": metrics["num_rows"],
+            }
+        )
+    return rows
