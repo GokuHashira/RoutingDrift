@@ -1,7 +1,7 @@
-from analysis.graph_break_analyzer import GraphBreakAnalyzer, explain_model, ModelGraphBreakReport
-from analysis.compile_benchmarker import CompileBenchmarker, run_compile_sweep, CompileBenchmarkReport
-from analysis.inductor_ir_inspector import InductorIRInspector, compare_with_triton
-from analysis.profiler_analyzer import ProfilerAnalyzer
+from Graph_Break_Analyzer import GraphBreakAnalyzer, explain_model, ModelGraphBreakReport
+from Benchmark import CompileBenchmarker, run_compile_sweep, CompileBenchmarkReport
+from ir_inspector import InductorIRInspector, compare_with_triton
+from profiler import ProfilerAnalyzer
  
 __all__ = [
     "GraphBreakAnalyzer", "explain_model", "ModelGraphBreakReport",
