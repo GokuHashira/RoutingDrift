@@ -11,7 +11,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from config import COMPILE_MODES, GRAPH12_PATH, OUTPUT_DIR
-from metrics.collector import AmoghMetrics
+from test_results import AmoghMetrics
 
 
 COLORS_MODES = {
