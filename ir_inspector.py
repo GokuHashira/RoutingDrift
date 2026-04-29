@@ -138,7 +138,7 @@ class InductorIRInspector:
         ops = {
             "rmsnorm":           (IsolatedRMSNorm(2048),      (1, 128, 2048)),
             "softmax":           (IsolatedSoftmax(),           (1, 128, 2048)),
-            "rmsnorm_softmax":   (IsolatedRMSNorm(2048),      (1, 128, 2048)),
+            "rmsnorm_softmax":   (IsolatedRMSNormSoftmax(2048), (1, 128, 2048)),
         }
 
         for op_name, (model, shape) in ops.items():
@@ -439,7 +439,7 @@ def write_ir_report(
 
     lines = [
         "=" * 80,
-        "TORCHINFDUCTOR IR ANALYSIS REPORT",
+        "TORCHINDUCTOR IR ANALYSIS REPORT",
         "=" * 80,
         "",
     ]
