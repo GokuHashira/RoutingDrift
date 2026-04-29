@@ -1,4 +1,4 @@
-from kernels.triton_kernels import (
+from triton_kernels import (
     rms_norm_triton,
     softmax_triton,
     HANDWRITTEN_RMSNORM_SOURCE,
