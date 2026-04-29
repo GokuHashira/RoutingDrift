@@ -41,6 +41,29 @@ MIXTRAL_CONFIG = ModelConfig(
  
 ALL_MODELS: List[ModelConfig] = [OLMOE_CONFIG, MIXTRAL_CONFIG]
 
+# Slim configs: same routing structure, small enough for CPU analysis.
+# Graph break patterns (topk, for-loop, index_add_, one_hot) are identical
+# regardless of hidden size — only parameter count changes.
+OLMOE_ANALYSIS_CONFIG = ModelConfig(
+    name="OLMoE",
+    hidden_size=512,
+    num_experts=8,
+    num_experts_per_tok=2,
+    intermediate_size=256,
+    num_heads=8,
+    num_layers=2,
+)
+
+MIXTRAL_ANALYSIS_CONFIG = ModelConfig(
+    name="Mixtral",
+    hidden_size=512,
+    num_experts=8,
+    num_experts_per_tok=2,
+    intermediate_size=1024,
+    num_heads=8,
+    num_layers=2,
+)
+
 #Modes
 @dataclass
 class BenchmarkConfig:
@@ -69,6 +92,8 @@ INDUCTOR_IR_PATH = f"{OUTPUT_DIR}/inductor_ir_report.txt"
 PROFILER_TRACE_PATH = f"{OUTPUT_DIR}/profiler_trace.json"
 
 LAYER_TYPES = ["attention", "moe_routing", "ffn", "rmsnorm", "embed", "lm_head"]
+
+COMPILE_MODES = ["default", "reduce-overhead", "max-autotune"]
 
 TRITON_BLOCK_SIZE = 1024
 TRITON_NUM_WARPS  = 8
