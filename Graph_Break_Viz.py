@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -12,7 +11,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from config import GRAPH11_PATH, LAYER_TYPES, OUTPUT_DIR
-from metrics.collector import AmoghMetrics
+from test_results import AmoghMetrics
 
 
 
