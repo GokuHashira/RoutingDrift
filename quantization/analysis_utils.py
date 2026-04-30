@@ -99,11 +99,7 @@ def build_drift_accuracy_rows(
     for row in eval_rows:
         variant = str(row["variant"])
         task = str(row["task"])
-        if variant == baseline_variant:
-            continue
-        if task not in baseline_by_task:
-            continue
-        if variant not in drift_by_variant:
+        if variant == baseline_variant or task not in baseline_by_task or variant not in drift_by_variant:
             continue
 
         baseline_accuracy = baseline_by_task[task]
@@ -130,8 +126,10 @@ def summarize_correlations(
         return []
 
     tasks = sorted({str(row["task"]) for row in drift_accuracy_rows})
-    groups: list[tuple[str, Iterable[dict]]] = [("all", drift_accuracy_rows)]
-    groups.extend((task, [row for row in drift_accuracy_rows if str(row["task"]) == task]) for task in tasks)
+    groups: list[tuple[str, Iterable[dict]]] = [
+        ("all", drift_accuracy_rows),
+        *[(task, [row for row in drift_accuracy_rows if str(row["task"]) == task]) for task in tasks],
+    ]
 
     summaries: list[dict] = []
     for group_name, group_rows_iter in groups:
