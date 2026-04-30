@@ -1,6 +1,6 @@
 # MSML 605 - Routing Drift
 
-This project implements Giri's quantization + routing analysis deliverable:
+This project implements quantization + routing analysis deliverable:
 
 1. Load OLMoE/Mixtral in FP16, INT8, and INT4 using `bitsandbytes`.
 2. Hook into the MoE router/gate layer.
@@ -158,12 +158,4 @@ Compiler modes can also introduce routing drift due to graph capture/fusion and 
 
 - GPU: `NVIDIA GeForce RTX 5070 Ti Laptop GPU`
 - VRAM: `12227 MiB` (~12 GB)
-
----
-
-## Handoff message to Gokul
-
-```text
-Hey Gokul, I finished the quantization loader. The function is load_model(model_name, precision) and supports fp16, int8, and int4 using bitsandbytes. I also added a routing logger that hooks into the MoE router/gate layer and records top-k expert indices per token. I ran the same prompt set across FP16, INT8, and INT4, then computed routing drift against the FP16 baseline. You can plug the loader directly into configs 5-12 for the benchmark matrix.
-```
 

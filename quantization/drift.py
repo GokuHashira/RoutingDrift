@@ -25,6 +25,46 @@ def _flatten_route_tensor(route_tensor: torch.Tensor) -> torch.Tensor:
     return route_tensor.reshape(-1, route_tensor.shape[-1])
 
 
+def _extend_zero_scores(route_tensor: torch.Tensor, rs_scores: List[float], overlap_scores: List[float]) -> None:
+    n_rows = _flatten_route_tensor(route_tensor).shape[0]
+    if n_rows:
+        rs_scores.extend([0.0] * n_rows)
+        overlap_scores.extend([0.0] * n_rows)
+
+
+def _score_route_pair(
+    baseline_tensor: torch.Tensor,
+    quantized_tensor: torch.Tensor,
+    rs_scores: List[float],
+    overlap_scores: List[float],
+) -> None:
+    base = _flatten_route_tensor(baseline_tensor)
+    quant = _flatten_route_tensor(quantized_tensor)
+    min_rows = min(base.shape[0], quant.shape[0])
+    k = max(base.shape[1], quant.shape[1], 1)
+    for row_idx in range(min_rows):
+        b_set = set(base[row_idx].tolist())
+        q_set = set(quant[row_idx].tolist())
+        union = len(b_set | q_set)
+        intersection = len(b_set & q_set)
+        rs_scores.append((intersection / union) if union > 0 else 1.0)
+        overlap_scores.append(intersection / k)
+    if min_rows < base.shape[0]:
+        _extend_zero_scores(base[min_rows:], rs_scores, overlap_scores)
+    if min_rows < quant.shape[0]:
+        _extend_zero_scores(quant[min_rows:], rs_scores, overlap_scores)
+
+
+def _collect_row_level_scores_for_module(
+    baseline_calls: List[torch.Tensor],
+    quantized_calls: List[torch.Tensor],
+) -> tuple[list[float], list[float]]:
+    rs_scores: list[float] = []
+    overlap_scores: list[float] = []
+    _collect_pairwise_route_scores(baseline_calls, quantized_calls, rs_scores, overlap_scores)
+    return rs_scores, overlap_scores
+
+
 def _collect_row_level_scores(
     baseline_routes: RoutesByModule,
     quantized_routes: RoutesByModule,
@@ -40,96 +80,27 @@ def _collect_row_level_scores(
     common_modules = sorted(set(baseline_routes.keys()) & set(quantized_routes.keys()))
 
     for module_name in common_modules:
-        base_list = baseline_routes[module_name]
-        quant_list = quantized_routes[module_name]
-
-        min_calls = min(len(base_list), len(quant_list))
-
-        for i in range(min_calls):
-            base = _flatten_route_tensor(base_list[i])
-            quant = _flatten_route_tensor(quant_list[i])
-
-            min_rows = min(base.shape[0], quant.shape[0])
-            for row_idx in range(min_rows):
-                b_set = set(base[row_idx].tolist())
-                q_set = set(quant[row_idx].tolist())
-
-                union = len(b_set | q_set)
-                intersection = len(b_set & q_set)
-
-                rs = (intersection / union) if union > 0 else 1.0
-                rs_scores.append(rs)
-
-                # Overlap@k denominator follows top-k cardinality.
-                k = max(base.shape[1], quant.shape[1], 1)
-                overlap_scores.append(intersection / k)
-
-            # Unmatched rows in a call indicate full disagreement.
-            extra_rows = abs(base.shape[0] - quant.shape[0])
-            if extra_rows > 0:
-                rs_scores.extend([0.0] * extra_rows)
-                overlap_scores.extend([0.0] * extra_rows)
-
-        # Extra calls imply unmatched routing outputs -> zero similarity/overlap.
-        if len(base_list) > min_calls:
-            for extra in base_list[min_calls:]:
-                n_rows = _flatten_route_tensor(extra).shape[0]
-                rs_scores.extend([0.0] * n_rows)
-                overlap_scores.extend([0.0] * n_rows)
-        elif len(quant_list) > min_calls:
-            for extra in quant_list[min_calls:]:
-                n_rows = _flatten_route_tensor(extra).shape[0]
-                rs_scores.extend([0.0] * n_rows)
-                overlap_scores.extend([0.0] * n_rows)
+        baseline_calls = baseline_routes[module_name]
+        quantized_calls = quantized_routes[module_name]
+        _collect_pairwise_route_scores(baseline_calls, quantized_calls, rs_scores, overlap_scores)
 
     return rs_scores, overlap_scores
 
 
-def _collect_row_level_scores_for_module(
+def _collect_pairwise_route_scores(
     baseline_calls: List[torch.Tensor],
     quantized_calls: List[torch.Tensor],
-) -> tuple[list[float], list[float]]:
-    """Module-local version of row-level score collection."""
-    rs_scores: list[float] = []
-    overlap_scores: list[float] = []
-
+    rs_scores: List[float],
+    overlap_scores: List[float],
+) -> None:
     min_calls = min(len(baseline_calls), len(quantized_calls))
-
     for i in range(min_calls):
-        base = _flatten_route_tensor(baseline_calls[i])
-        quant = _flatten_route_tensor(quantized_calls[i])
+        _score_route_pair(baseline_calls[i], quantized_calls[i], rs_scores, overlap_scores)
 
-        min_rows = min(base.shape[0], quant.shape[0])
-        for row_idx in range(min_rows):
-            b_set = set(base[row_idx].tolist())
-            q_set = set(quant[row_idx].tolist())
-
-            union = len(b_set | q_set)
-            intersection = len(b_set & q_set)
-
-            rs = (intersection / union) if union > 0 else 1.0
-            rs_scores.append(rs)
-
-            k = max(base.shape[1], quant.shape[1], 1)
-            overlap_scores.append(intersection / k)
-
-        extra_rows = abs(base.shape[0] - quant.shape[0])
-        if extra_rows > 0:
-            rs_scores.extend([0.0] * extra_rows)
-            overlap_scores.extend([0.0] * extra_rows)
-
-    if len(baseline_calls) > min_calls:
-        for extra in baseline_calls[min_calls:]:
-            n_rows = _flatten_route_tensor(extra).shape[0]
-            rs_scores.extend([0.0] * n_rows)
-            overlap_scores.extend([0.0] * n_rows)
-    elif len(quantized_calls) > min_calls:
-        for extra in quantized_calls[min_calls:]:
-            n_rows = _flatten_route_tensor(extra).shape[0]
-            rs_scores.extend([0.0] * n_rows)
-            overlap_scores.extend([0.0] * n_rows)
-
-    return rs_scores, overlap_scores
+    for extra in baseline_calls[min_calls:]:
+        _extend_zero_scores(extra, rs_scores, overlap_scores)
+    for extra in quantized_calls[min_calls:]:
+        _extend_zero_scores(extra, rs_scores, overlap_scores)
 
 
 def compute_routing_similarity_rs(

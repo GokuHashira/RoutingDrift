@@ -22,9 +22,7 @@ def save_routes_json(routes: RoutesByModule, output_path: str | Path) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    serializable = {}
-    for module_name, tensors in routes.items():
-        serializable[module_name] = [tensor.tolist() for tensor in tensors]
+    serializable = {module_name: [tensor.tolist() for tensor in tensors] for module_name, tensors in routes.items()}
 
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(serializable, f, indent=2)

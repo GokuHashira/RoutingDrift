@@ -72,57 +72,34 @@ def load_model(
             trust_remote_code=trust_remote_code,
         )
 
-    elif precision == "int8":
-        effective_device_map = device_map
-        if device_map == "auto" and torch.cuda.is_available():
-            # On single-GPU local setups this avoids bnb auto-offload edge cases.
-            effective_device_map = {"": 0}
-
-        use_cpu_disk_offload = effective_device_map == "auto"
-        if use_cpu_disk_offload:
-            precision_offload_dir = Path(offload_folder) / precision
-            precision_offload_dir.mkdir(parents=True, exist_ok=True)
-
-        quant_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            llm_int8_enable_fp32_cpu_offload=use_cpu_disk_offload,
-        )
-
-        kwargs = {
-            "quantization_config": quant_config,
-            "device_map": effective_device_map,
-            "trust_remote_code": trust_remote_code,
-        }
-        if use_cpu_disk_offload:
-            kwargs["offload_folder"] = str(precision_offload_dir)
-
-        model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
-
-    elif precision == "int4":
+    elif precision in {"int8", "int4"}:
         effective_device_map = device_map
         if device_map == "auto" and torch.cuda.is_available():
             effective_device_map = {"": 0}
 
         use_cpu_disk_offload = effective_device_map == "auto"
         if use_cpu_disk_offload:
-            precision_offload_dir = Path(offload_folder) / precision
-            precision_offload_dir.mkdir(parents=True, exist_ok=True)
+            (Path(offload_folder) / precision).mkdir(parents=True, exist_ok=True)
 
-        quant_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-        )
-
+        if precision == "int8":
+            quant_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=use_cpu_disk_offload,
+            )
+        else:
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+            )
         kwargs = {
             "quantization_config": quant_config,
             "device_map": effective_device_map,
             "trust_remote_code": trust_remote_code,
         }
         if use_cpu_disk_offload:
-            kwargs["offload_folder"] = str(precision_offload_dir)
-
+            kwargs["offload_folder"] = str(Path(offload_folder) / precision)
         model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
 
     model.eval()

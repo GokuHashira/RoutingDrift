@@ -55,7 +55,7 @@ class RoutingLogger:
         ]
         return any(keyword in lower for keyword in router_keywords)
 
-    def _extract_router_logits(self, output):
+    def _extract_router_logits(self, output) -> torch.Tensor | None:
         """
         Router modules may return tensor directly or tuple/list.
         This function tries to grab the tensor containing expert scores.
@@ -105,6 +105,7 @@ class RoutingLogger:
     def attach(self, model, verbose: bool = True) -> None:
         """Attach hooks to matching router/gate modules."""
         self.remove()
+        self.clear()
 
         for name, module in model.named_modules():
             if self._is_target_router(name):

@@ -341,9 +341,7 @@ def main():
             quantized_routes=routes,
         )
 
-        compiler_mode = "eager"
-        if "+compile:" in variant:
-            compiler_mode = variant.split("+compile:", maxsplit=1)[1]
+        compiler_mode = variant.split("+compile:", 1)[1] if "+compile:" in variant else "eager"
 
         row = {
             "variant": variant,
