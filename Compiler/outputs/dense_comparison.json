@@ -1,0 +1,26 @@
+{
+  "OLMoE": {
+    "moe_name": "OLMoE",
+    "dense_name": "Dense-OLMoE",
+    "moe_p50_ms": 20.926699999108678,
+    "dense_p50_ms": 17.996800000219082,
+    "moe_throughput_tps": 6116.587899929365,
+    "dense_throughput_tps": 7112.375533341583,
+    "speedup_moe_vs_dense": 0.8599922587405378,
+    "routing_overhead_ms": 2.9298999988895957,
+    "moe_params": 41168384,
+    "dense_params": 36440576
+  },
+  "Mixtral": {
+    "moe_name": "Mixtral",
+    "dense_name": "Dense-Mixtral",
+    "moe_p50_ms": 25.35654999974213,
+    "dense_p50_ms": 21.0712500002046,
+    "moe_throughput_tps": 5048.005347782003,
+    "dense_throughput_tps": 6074.627751023652,
+    "speedup_moe_vs_dense": 0.8309983022303464,
+    "routing_overhead_ms": 4.2852999995375285,
+    "moe_params": 60041728,
+    "dense_params": 41159168
+  }
+}
