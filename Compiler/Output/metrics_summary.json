@@ -1,0 +1,158 @@
+{
+  "OLMoE": {
+    "graph_11": {
+      "total_graph_breaks": 1,
+      "total_subgraphs": 5,
+      "pct_compiled": 50.0,
+      "pct_eager": 50.0,
+      "breaks_per_layer": {
+        "moe_routing": 1
+      },
+      "break_reasons": {
+        "moe_routing": {
+          "data-dependent control flow": 1
+        }
+      },
+      "ops_causing_breaks": {
+        "moe_routing": [
+          "if expert_mask.any():"
+        ]
+      }
+    },
+    "graph_12": {
+      "best_compile_mode": "default",
+      "compile_results": {
+        "eager": {
+          "compile_time_s": 0.0,
+          "p50_ms": 22.754800025722943,
+          "p90_ms": 24.251439995714463,
+          "p99_ms": 25.099890001874893,
+          "throughput_tps": 5625.1867674206605,
+          "speedup": 1.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "default": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "reduce-overhead": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "max-autotune": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        }
+      }
+    },
+    "graph_14": {
+      "moe_name": "OLMoE",
+      "dense_name": "Dense-OLMoE",
+      "moe_p50_ms": 22.375150001607835,
+      "dense_p50_ms": 19.01630000793375,
+      "moe_throughput_tps": 5720.632040044521,
+      "dense_throughput_tps": 6731.06755502371,
+      "speedup_moe_vs_dense": 0.8498848055350366,
+      "routing_overhead_ms": 3.3588499936740845,
+      "moe_params": 41168384,
+      "dense_params": 36440576
+    }
+  },
+  "Mixtral": {
+    "graph_11": {
+      "total_graph_breaks": 1,
+      "total_subgraphs": 5,
+      "pct_compiled": 50.0,
+      "pct_eager": 50.0,
+      "breaks_per_layer": {
+        "other": 1
+      },
+      "break_reasons": {
+        "other": {
+          "dynamic shape: nonzero/where": 1
+        }
+      },
+      "ops_causing_breaks": {
+        "other": [
+          "idx=torch.where(expert_mask[expert_idx])"
+        ]
+      }
+    },
+    "graph_12": {
+      "best_compile_mode": "default",
+      "compile_results": {
+        "eager": {
+          "compile_time_s": 0.0,
+          "p50_ms": 27.367100003175437,
+          "p90_ms": 29.142040011356585,
+          "p99_ms": 30.226465996820494,
+          "throughput_tps": 4677.148838757048,
+          "speedup": 1.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "default": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "reduce-overhead": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        },
+        "max-autotune": {
+          "compile_time_s": -1.0,
+          "p50_ms": Infinity,
+          "p90_ms": Infinity,
+          "p99_ms": Infinity,
+          "throughput_tps": 0.0,
+          "speedup": 0.0,
+          "peak_vram_mb": 0.0,
+          "compile_vram_overhead_mb": 0.0
+        }
+      }
+    },
+    "graph_14": {
+      "moe_name": "Mixtral",
+      "dense_name": "Dense-Mixtral",
+      "moe_p50_ms": 25.561650007148273,
+      "dense_p50_ms": 21.671850001439452,
+      "moe_throughput_tps": 5007.501470531245,
+      "dense_throughput_tps": 5906.279343549268,
+      "speedup_moe_vs_dense": 0.8478267246198486,
+      "routing_overhead_ms": 3.889800005708821,
+      "moe_params": 60041728,
+      "dense_params": 41159168
+    }
+  }
+}
