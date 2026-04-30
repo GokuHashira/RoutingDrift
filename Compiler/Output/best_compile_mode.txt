@@ -1,4 +1,0 @@
-{
-  "OLMoE": "default",
-  "Mixtral": "default"
-}
