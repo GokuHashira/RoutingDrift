@@ -1,4 +1,4 @@
 {
-  "OLMoE": "default",
-  "Mixtral": "default"
+  "OLMoE": "reduce-overhead",
+  "Mixtral": "max-autotune"
 }
