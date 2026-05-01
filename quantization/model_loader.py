@@ -13,14 +13,46 @@ Example:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Mapping, Tuple
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 
-SUPPORTED_PRECISIONS = {"fp16", "int8", "int4"}
+SUPPORTED_PRECISIONS = {"fp16", "int8", "int4", "gptq"}
+
+
+def _read_local_quantization_config(model_name: str) -> Mapping[str, Any]:
+    """Return quantization_config from a local HF config.json, if present."""
+    config_path = Path(model_name) / "config.json"
+    if not config_path.is_file():
+        return {}
+
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            config = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    quantization_config = config.get("quantization_config")
+    return quantization_config if isinstance(quantization_config, Mapping) else {}
+
+
+def _is_gptq_checkpoint(model_name: str) -> bool:
+    quantization_config = _read_local_quantization_config(model_name)
+    quant_method = str(quantization_config.get("quant_method", "")).lower()
+    return quant_method == "gptq" or "gptq" in model_name.lower()
+
+
+def _validate_quantization_source(model_name: str, precision: str) -> None:
+    if precision != "gptq" and _is_gptq_checkpoint(model_name):
+        raise ValueError(
+            "The selected precision uses bitsandbytes and requires the original dense checkpoint, "
+            "but the model path appears to be a pre-quantized GPTQ checkpoint. Use --precisions gptq "
+            "for this checkpoint, or use a dense model path for fp16/int8/int4."
+        )
 
 
 def load_model(
@@ -53,6 +85,7 @@ def load_model(
     precision = precision.lower().strip()
     if precision not in SUPPORTED_PRECISIONS:
         raise ValueError(f"precision must be one of {sorted(SUPPORTED_PRECISIONS)}, got: {precision}")
+    _validate_quantization_source(model_name, precision)
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
@@ -64,10 +97,18 @@ def load_model(
     if tokenizer.pad_token is None and tokenizer.eos_token is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    if precision == "fp16":
+    if precision == "gptq":
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
+            dtype="auto",
+            device_map=device_map,
+            trust_remote_code=trust_remote_code,
+        )
+
+    elif precision == "fp16":
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            dtype=torch.float16,
             device_map=device_map,
             trust_remote_code=trust_remote_code,
         )

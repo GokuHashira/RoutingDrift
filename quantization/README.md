@@ -2,7 +2,7 @@
 
 This project implements quantization + routing analysis deliverable:
 
-1. Load OLMoE/Mixtral in FP16, INT8, and INT4 using `bitsandbytes`.
+1. Load OLMoE/Mixtral in FP16, INT8, and INT4 using `bitsandbytes`, or load an existing GPTQ checkpoint as-is.
 2. Hook into the MoE router/gate layer.
 3. Log top-k expert selections per token.
 4. Run the same prompts across FP16, INT8, and INT4.
@@ -69,7 +69,10 @@ Supported precision values:
 fp16
 int8
 int4
+gptq
 ```
+
+Use `gptq` only for an already GPTQ-quantized checkpoint. The `fp16`, `int8`, and `int4` modes require the original dense checkpoint.
 
 ---
 
@@ -82,6 +85,17 @@ python run_experiment.py \
   --model_name mistralai/Mixtral-8x7B-v0.1 \
   --top_k 2 \
   --target_module block_sparse_moe.gate
+```
+
+Run a GPTQ-only checkpoint:
+
+```bash
+python run_experiment.py \
+  --model_name /scratch/zt1/project/msml605/user/gsakthiv/models/Mixtral-8x7B-GPTQ \
+  --precisions gptq \
+  --top_k 2 \
+  --target_module block_sparse_moe.gate \
+  --output_dir results_mixtral_gptq
 ```
 
 Run with compiler-mode drift variants:
@@ -158,4 +172,3 @@ Compiler modes can also introduce routing drift due to graph capture/fusion and 
 
 - GPU: `NVIDIA GeForce RTX 5070 Ti Laptop GPU`
 - VRAM: `12227 MiB` (~12 GB)
-

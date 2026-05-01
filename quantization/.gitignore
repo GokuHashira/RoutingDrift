@@ -4,3 +4,4 @@ __pycache__/
 offload_cache/
 progress_report_quantization.md
 progress_report_quantization.pdf
+*.sbatch

@@ -201,3 +201,111 @@ def plot_layer_heatmap(
     fig.tight_layout()
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
+
+
+def aggregate_quantization_metrics(
+    summary_rows: list[dict],
+    eval_rows: list[dict] | None = None,
+    baseline_variant: str = "fp16",
+) -> dict:
+    """
+    Aggregate quantization experiment metrics by variant.
+
+    Args:
+        summary_rows: Drift summary rows from quantization run (variant, precision, routing_similarity_rs, etc.)
+        eval_rows: Optional lm-eval rows (variant, task, accuracy, metric)
+        baseline_variant: Name of baseline variant (default "fp16")
+
+    Returns:
+        Dictionary with keys:
+            - "by_variant": dict mapping variant -> {drift metrics + eval scores}
+            - "summary": overall statistics (mean drift, accuracy drop across variants)
+            - "baseline_variant": baseline variant name
+    """
+    metrics = {
+        "by_variant": {},
+        "summary": {},
+        "baseline_variant": baseline_variant,
+    }
+
+    # Group by variant
+    variant_data = {}
+    for row in summary_rows:
+        variant = row.get("variant", "unknown")
+        if variant not in variant_data:
+            variant_data[variant] = {
+                "routing_similarity_rs": row.get("routing_similarity_rs", 1.0),
+                "jaccard_drift": row.get("jaccard_drift", 0.0),
+                "overlap_at_k": row.get("overlap_at_k", 1.0),
+                "selection_shift": row.get("selection_shift", 0.0),
+                "precision": row.get("precision", "unknown"),
+                "compiler_mode": row.get("compiler_mode", "eager"),
+                "variant_type": row.get("variant_type", "unknown"),
+                "eval_scores": {},
+            }
+
+    # Merge eval scores if provided
+    if eval_rows:
+        for row in eval_rows:
+            variant = row.get("variant")
+            task = row.get("task")
+            accuracy = row.get("accuracy")
+            if variant in variant_data and task and accuracy is not None:
+                variant_data[variant]["eval_scores"][task] = float(accuracy)
+
+    metrics["by_variant"] = variant_data
+
+    # Compute summary statistics
+    drift_values = [v["jaccard_drift"] for v in variant_data.values() if v["variant_type"] == "quantization"]
+    selection_shift_values = [v["selection_shift"] for v in variant_data.values() if v["variant_type"] == "quantization"]
+    similarity_values = [v["routing_similarity_rs"] for v in variant_data.values() if v["variant_type"] == "quantization"]
+
+    metrics["summary"] = {
+        "num_variants": len(variant_data),
+        "num_quantization_variants": sum(1 for v in variant_data.values() if v["variant_type"] == "quantization"),
+        "mean_jaccard_drift": float(np.mean(drift_values)) if drift_values else 0.0,
+        "max_jaccard_drift": float(np.max(drift_values)) if drift_values else 0.0,
+        "mean_selection_shift": float(np.mean(selection_shift_values)) if selection_shift_values else 0.0,
+        "mean_routing_similarity": float(np.mean(similarity_values)) if similarity_values else 1.0,
+    }
+
+    # Per-task accuracy summary
+    all_tasks = set()
+    if eval_rows:
+        all_tasks = {row.get("task") for row in eval_rows if row.get("task")}
+
+    for task in all_tasks:
+        task_accs = []
+        for v in variant_data.values():
+            if task in v["eval_scores"]:
+                task_accs.append(v["eval_scores"][task])
+        if task_accs:
+            metrics["summary"][f"mean_accuracy_{task}"] = float(np.mean(task_accs))
+            metrics["summary"][f"std_accuracy_{task}"] = float(np.std(task_accs))
+
+    return metrics
+
+
+def print_quantization_metrics(metrics: dict, model_name: str) -> None:
+    """Pretty-print aggregated quantization metrics."""
+    print(f"\n{'='*80}")
+    print(f"  Quantization Metrics Summary — {model_name}")
+    print(f"{'='*80}")
+    print(f"\nBaseline variant: {metrics['baseline_variant']}")
+    print(f"\nSummary statistics:")
+    for key, val in metrics["summary"].items():
+        if isinstance(val, float):
+            print(f"  {key}: {val:.4f}")
+        else:
+            print(f"  {key}: {val}")
+
+    print(f"\nPer-variant breakdown:")
+    for variant, data in metrics["by_variant"].items():
+        print(f"\n  {variant}")
+        print(f"    Precision: {data['precision']}, Type: {data['variant_type']}")
+        print(f"    Routing similarity: {data['routing_similarity_rs']:.4f}")
+        print(f"    Jaccard drift: {data['jaccard_drift']:.4f}")
+        print(f"    Selection shift: {data['selection_shift']:.4f}")
+        if data["eval_scores"]:
+            print(f"    Eval scores: {', '.join(f'{t}={s:.4f}' for t, s in data['eval_scores'].items())}")
+
