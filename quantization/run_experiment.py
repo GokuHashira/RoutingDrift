@@ -2,10 +2,10 @@
 run_experiment.py
 
 End-to-end experiment:
-    1. Load model in FP16, INT8, INT4 (+ optional compiler modes)
+    1. Load model in FP16, INT8, INT4, or GPTQ (+ optional compiler modes)
     2. Hook router/gate layer
     3. Log top-k expert indices per token
-    4. Compute routing drift vs FP16 baseline
+    4. Compute routing drift vs the selected baseline
     5. (Optional) Run lm-evaluation-harness on MMLU/GSM8K/HellaSwag
     6. Compute Pearson/Spearman correlation (routing drift vs accuracy drop)
     7. Save JSON/CSV/Markdown summaries + layer drift heatmaps
@@ -66,6 +66,16 @@ def _build_variant_name(precision: str, compiler_mode: str) -> str:
     if compiler_mode == "eager":
         return precision
     return f"{precision}+compile:{compiler_mode}"
+
+
+def _normalize_task_names(task_args: List[str]) -> List[str]:
+    tasks: List[str] = []
+    for task_arg in task_args:
+        for task in task_arg.split(","):
+            task = task.strip()
+            if task:
+                tasks.append(task)
+    return tasks
 
 
 def _apply_compiler_mode(model, compiler_mode: str):
@@ -206,8 +216,8 @@ def main():
         "--precisions",
         nargs="+",
         default=["fp16", "int8", "int4"],
-        choices=["fp16", "int8", "int4"],
-        help="Precisions to run.",
+        choices=["fp16", "int8", "int4", "gptq"],
+        help="Precisions to run. Use gptq for an already GPTQ-quantized checkpoint.",
     )
     parser.add_argument(
         "--compiler_modes",
@@ -220,7 +230,7 @@ def main():
         "--compiler_precision",
         type=str,
         default="fp16",
-        choices=["fp16", "int8", "int4"],
+        choices=["fp16", "int8", "int4", "gptq"],
         help="Precision used for compiler-mode drift variants.",
     )
     parser.add_argument(
@@ -234,7 +244,7 @@ def main():
         "--lm-eval-tasks",
         nargs="+",
         default=list(SUPPORTED_EVAL_TASKS),
-        help="lm-eval tasks to run.",
+        help="lm-eval tasks to run. Accepts either spaces or commas, e.g. mmlu gsm8k or mmlu,gsm8k.",
     )
     parser.add_argument(
         "--lm_eval_num_fewshot",
@@ -312,16 +322,16 @@ def main():
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = args.compiler_precision
 
-    baseline_variant = _build_variant_name("fp16", "eager")
+    baseline_variant = _build_variant_name(args.precisions[0], "eager")
     if baseline_variant not in all_routes:
-        print("[Warning] FP16 baseline was not run, so drift cannot be computed.")
+        print(f"[Warning] Baseline variant {baseline_variant!r} was not run, so drift cannot be computed.")
         return
 
     baseline_routes = all_routes[baseline_variant]
     summary_rows = [
         {
             "variant": baseline_variant,
-            "precision": "fp16",
+            "precision": variant_to_precision[baseline_variant],
             "compiler_mode": "eager",
             "variant_type": "baseline",
             "routing_similarity_rs": 1.0,
@@ -355,7 +365,7 @@ def main():
         }
         summary_rows.append(row)
 
-        print(f"\nResearch Metrics {variant} vs FP16")
+        print(f"\nResearch Metrics {variant} vs {baseline_variant}")
         print(f"  Routing similarity RS : {metrics['routing_similarity_rs']:.4f}")
         print(f"  Jaccard routing drift : {metrics['jaccard_drift']:.4f}")
         print(f"  Overlap@k             : {metrics['overlap_at_k']:.4f}")
@@ -407,7 +417,7 @@ def main():
     print(f"[Saved] {summary_md_path}")
 
     if args.run_lm_eval:
-        tasks = [task.strip() for task in args.lm_eval_tasks if task.strip()]
+        tasks = _normalize_task_names(args.lm_eval_tasks)
         if not tasks:
             raise ValueError("No lm-eval tasks provided.")
 

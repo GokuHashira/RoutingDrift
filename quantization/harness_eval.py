@@ -34,7 +34,9 @@ def build_hf_model_args(
         parts.append("trust_remote_code=True")
 
     precision = precision.lower().strip()
-    if precision == "fp16":
+    if precision == "gptq":
+        pass
+    elif precision == "fp16":
         parts.append("dtype=float16")
     elif precision == "int8":
         parts.append("load_in_8bit=True")
@@ -88,11 +90,24 @@ def run_lm_eval(
         limit=limit,
     )
 
+    sanitized = _sanitize_for_json(results)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+        json.dump(sanitized, f, indent=2)
     return results
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively remove non-JSON-serializable objects from nested dicts/lists."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        return str(obj)
 
 
 def _extract_primary_metric(task_metrics: dict[str, Any]) -> tuple[str, float] | None:

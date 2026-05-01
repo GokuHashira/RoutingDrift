@@ -76,9 +76,9 @@ def save_summary_md(
     if not rows:
         lines.extend(
             [
-                "No quantized-vs-FP16 comparisons were available.",
+                "No variant comparisons were available.",
                 "",
-                "Run FP16 and at least one of INT8/INT4 to produce drift metrics.",
+                "Run at least two variants to produce drift metrics.",
             ]
         )
     else:
@@ -101,8 +101,8 @@ def save_summary_md(
                 "",
                 "## Interpretation",
                 "",
-                "Higher RS and Overlap@k indicate routing closer to FP16 baseline behavior.",
-                "Lower Jaccard Drift and Selection Shift indicate less routing change after quantization.",
+                "Higher RS and Overlap@k indicate routing closer to baseline behavior.",
+                "Lower Jaccard Drift and Selection Shift indicate less routing change from the baseline.",
             ]
         )
 
