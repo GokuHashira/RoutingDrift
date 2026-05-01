@@ -96,6 +96,8 @@ def load_olmoe(precision="fp16", kernels=True):
 def load_mixtral(precision="gptq", kernels=True):
     print(f"\nLoading Mixtral [{precision}]{' + kernels' if kernels else ''}...")
     tokenizer=AutoTokenizer.from_pretrained(MIXTRAL_PATH)
+    model=None
+    precision=precision.lower().strip()
     if precision=="gptq":
         model=AutoModelForCausalLM.from_pretrained(
             MIXTRAL_PATH, device_map="auto",
@@ -109,9 +111,8 @@ def load_mixtral(precision="gptq", kernels=True):
         raise ValueError(f"unsupported Mixtral precision: {precision}")
     if kernels:
         n_rms=patch_rmsnorm(model)
-        # Mixtral has only 8 router logits per token. Replacing that softmax with
-        # a separate Triton launch per layer changes GPTQ routing enough to fail
-        # logit validation and is much slower end-to-end.
+        # Mixtral router softmax patch is currently not safe for GPTQ.
+        # Keep the RMSNorm kernel replacements only so validation remains correct.
         n_sfx=0
         print(f"  patched {n_rms} RMSNorm + {n_sfx} router softmax layers")
     return model, tokenizer

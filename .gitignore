@@ -17,3 +17,4 @@ __pycache__/
 # Environment files
 .env
 .venv
+*.sbatch
