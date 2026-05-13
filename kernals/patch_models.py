@@ -5,13 +5,21 @@ Monkey-patches RMSNorm and MoE router softmax in OLMoE/Mixtral with Triton kerne
 import os
 import torch
 import torch.nn as nn
+from dotenv import load_dotenv, find_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from rms_norm import fused_rms_norm, torch_rms_norm
 from softmax import fused_softmax
 
-OLMOE_PATH="/scratch/zt1/project/msml605/user/gsakthiv/models/OLMoE-1B-7B"
-MIXTRAL_PATH="/scratch/zt1/project/msml605/user/gsakthiv/models/Mixtral-8x7B-GPTQ"
-DEVICE="cuda"
+load_dotenv(find_dotenv())
+
+OLMOE_PATH = os.getenv("OLMOE_PATH", "")
+MIXTRAL_PATH = os.getenv("MIXTRAL_PATH", "")
+DEVICE = "cuda"
+
+if not OLMOE_PATH:
+    raise EnvironmentError("OLMOE_PATH is not set. Copy .env.example to .env and fill in the paths.")
+if not MIXTRAL_PATH:
+    raise EnvironmentError("MIXTRAL_PATH is not set. Copy .env.example to .env and fill in the paths.")
 
 
 class FusedRMSNorm(nn.Module):

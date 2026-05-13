@@ -5,9 +5,12 @@ Runs GSM8K + MMLU on baseline vs patched OLMoE to confirm kernel correctness.
 import os
 import json
 import subprocess
+from dotenv import load_dotenv, find_dotenv
 from patch_models import load_olmoe
 
-OLMOE_PATH="/scratch/zt1/project/msml605/user/gsakthiv/models/OLMoE-1B-7B"
+load_dotenv(find_dotenv())
+
+OLMOE_PATH = os.getenv("OLMOE_PATH", "")
 
 EVAL_CONFIGS=[
     {"name": "baseline",      "kernels": False, "precision": "fp16"},
