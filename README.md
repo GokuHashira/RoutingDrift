@@ -136,7 +136,88 @@ RoutingDrift/
 
 ---
 
-## How to Run
+## Running with Docker
+
+Docker is the recommended way to run this project — it handles all CUDA, Triton, and quantization dependencies automatically.
+
+**Prerequisites**
+- [Docker](https://docs.docker.com/get-docker/) with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- A GPU with CUDA 12.1+ support (A100 recommended)
+
+**1. Configure model paths**
+
+Copy the example env file and fill in the paths to your model weights:
+
+```bash
+cp .env.example .env
+# Edit .env and set OLMOE_PATH and MIXTRAL_PATH to your local model directories
+```
+
+**2. Expose model weights to the container**
+
+Open `docker-compose.yml` and uncomment the volume mount under `x-base`, pointing to
+the directory that contains your model weights:
+
+```yaml
+# Example for Zaratan scratch:
+- /scratch/zt1/project/msml605:/scratch/zt1/project/msml605:ro
+```
+
+The path inside the container must match the path in your `.env` file exactly.
+
+**3. Build the image**
+
+```bash
+docker compose build
+```
+
+**4. Run each sub-study**
+
+```bash
+# Validate Triton kernels (RMSNorm + Softmax correctness)
+docker compose run --rm validate
+
+# E2E latency benchmark — OLMoE
+docker compose run --rm benchmark
+
+# E2E latency benchmark — Mixtral
+docker compose run --rm benchmark-mixtral
+
+# Isolated kernel profiling + Amdahl breakdown
+docker compose run --rm profile
+
+# GSM8K + MMLU accuracy eval on patched vs baseline OLMoE
+docker compose run --rm eval
+
+# Routing drift experiment across FP16 / INT8 / INT4
+docker compose run --rm quant
+
+# torch.compile graph-break analysis
+docker compose run --rm compile
+
+# Cross-study aggregation report
+docker compose run --rm report
+```
+
+All results are written to `./results/` on your host machine.
+
+**Pass extra flags** by appending them after the service name:
+
+```bash
+docker compose run --rm benchmark --model Mixtral --out ./results
+docker compose run --rm eval --limit 500
+docker compose run --rm quant --model_name allenai/OLMoE-1B-7B --top_k 8
+```
+
+**Drop into an interactive shell** for ad-hoc runs:
+
+```bash
+docker compose run --rm shell
+```
+
+---
+
+## How to Run (without Docker)
 
 **Prerequisites**
 ```bash

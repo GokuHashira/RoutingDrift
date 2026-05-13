@@ -1,0 +1,15 @@
+.git
+.env
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+
+kernals/results/
+quantization/results_olmoe_datasets/
+Compiler/outputs/
+report/plots/
+
+.DS_Store

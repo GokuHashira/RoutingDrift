@@ -1,0 +1,73 @@
+# Shared config — referenced by every service via YAML anchor
+x-base: &base
+  build: .
+  image: routingdrift:latest
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  env_file:
+    - .env
+  volumes:
+    - hf_cache:/cache/huggingface
+    - ./results:/workspace/results
+    # Bind-mount your model weight directory so OLMOE_PATH / MIXTRAL_PATH
+    # resolve inside the container. Mirror the host path exactly.
+    # Example (Zaratan scratch):
+    #   - /scratch/zt1/project/msml605:/scratch/zt1/project/msml605:ro
+
+services:
+
+  # ── Sub-study 1: Triton kernels ─────────────────────────────────────────────
+
+  validate:
+    <<: *base
+    command: validate
+
+  benchmark:
+    <<: *base
+    command: benchmark --out ./results --model OLMoE
+
+  benchmark-mixtral:
+    <<: *base
+    command: benchmark --out ./results --model Mixtral
+
+  profile:
+    <<: *base
+    command: profile --out ./results --model OLMoE
+
+  eval:
+    <<: *base
+    command: eval --out ./results --limit 200
+
+  # ── Sub-study 2: Quantization drift ─────────────────────────────────────────
+
+  quant:
+    <<: *base
+    command: quant --model_name allenai/OLMoE-1B-7B --top_k 8
+
+  # ── Sub-study 3: torch.compile analysis ─────────────────────────────────────
+
+  compile:
+    <<: *base
+    command: compile
+
+  # ── Cross-study report ───────────────────────────────────────────────────────
+
+  report:
+    <<: *base
+    command: report --out report/plots
+
+  # ── Interactive shell ────────────────────────────────────────────────────────
+
+  shell:
+    <<: *base
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  hf_cache:
