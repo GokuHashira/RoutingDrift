@@ -2,15 +2,19 @@
 validate_olmoe.py — MSML 605 (Gokul)
 Tests RMSNorm + Softmax kernels on random tensors, then on a live OLMoE forward pass.
 """
+import os
 import torch
+from dotenv import load_dotenv, find_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from rms_norm import fused_rms_norm, torch_rms_norm
 from softmax import fused_softmax, torch_softmax
 from patch_models import load_olmoe
 
-OLMOE_PATH="/scratch/zt1/project/msml605/user/gsakthiv/models/OLMoE-1B-7B"
-DEVICE="cuda"
-TOL=1e-2
+load_dotenv(find_dotenv())
+
+OLMOE_PATH = os.getenv("OLMOE_PATH", "")
+DEVICE = "cuda"
+TOL = 1e-2
 
 
 def validate_rms_norm_kernel():
@@ -72,7 +76,7 @@ def validate_olmoe_patched(baseline_logits):
 if __name__=="__main__":
     import argparse
     parser=argparse.ArgumentParser(description="Validate RMSNorm/Softmax kernels on OLMoE")
-    parser.add_argument("--model-path", default=OLMOE_PATH, help="Path to OLMoE model weights")
+    parser.add_argument("--model-path", default=OLMOE_PATH, help="Path to OLMoE model weights (overrides OLMOE_PATH env var)")
     args=parser.parse_args()
     OLMOE_PATH=args.model_path
 
