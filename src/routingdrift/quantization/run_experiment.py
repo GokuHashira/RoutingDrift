@@ -242,7 +242,9 @@ def _run_lm_eval_matrix(
     return eval_rows
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    """CLI definition, kept separate so `main()` reads as a sequence of phases."""
+    parser = argparse.ArgumentParser(description="Quantization routing drift experiment for MoE models.")
     parser = argparse.ArgumentParser(description="Quantization routing drift experiment for MoE models.")
     parser.add_argument(
         "--model_name",
@@ -382,8 +384,12 @@ def main():
         help="Skip the baseline double-pass determinism check (it costs one extra prefill pass).",
     )
 
-    args = parser.parse_args()
+    return parser
 
+
+def _setup_run(args):
+    """Resolve the output directory, start logging and seeding, load prompts, and write
+    the pre-run manifest so a crashed job still leaves an environment record."""
     output_dir = assert_safe_output_dir(args.output_dir, "drift results")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -435,6 +441,11 @@ def main():
         manifest_path,
     )
 
+    return output_dir, log_path, seed_settings, prompts, manifest_path, manifest_extra
+
+
+def _collect_variants(args, prompts, output_dir):
+    """Run every requested precision and compiler mode, saving each variant's routes."""
     all_routes: Dict[str, Dict[str, List[torch.Tensor]]] = {}
     variant_to_precision: Dict[str, str] = {}
     variant_info: Dict[str, dict] = {}
@@ -479,6 +490,12 @@ def main():
         variant_to_precision[variant_name] = args.compiler_precision
         variant_info[variant_name] = info
 
+    return all_routes, variant_to_precision, variant_info
+
+
+def _compute_drift(args, all_routes, variant_to_precision):
+    """Score every variant against the baseline, guarding that the metric can match a
+    route set against itself before any drift number is emitted."""
     baseline_variant = _build_variant_name(args.precisions[0], "eager")
     if baseline_variant not in all_routes:
         print(f"[Warning] Baseline variant {baseline_variant!r} was not run, so drift cannot be computed.")
@@ -553,6 +570,11 @@ def main():
             )
         )
 
+    return baseline_variant, baseline_metrics, summary_rows, layer_rows
+
+
+def _write_drift_outputs(args, output_dir, prompts, summary_rows, layer_rows):
+    """Persist the drift CSVs, optional heatmaps, and the human-readable summary."""
     summary_path = output_dir / "routing_drift_summary.csv"
     save_summary_csv(summary_rows, summary_path)
     print(f"\n[Saved] {summary_path}")
@@ -590,6 +612,10 @@ def main():
     )
     print(f"[Saved] {summary_md_path}")
 
+
+
+def _evaluate_and_correlate(args, output_dir, summary_rows, variant_to_precision, baseline_variant):
+    """Run lm-eval per eager variant and join accuracy against drift."""
     if args.run_lm_eval:
         tasks = _normalize_task_names(args.lm_eval_tasks)
         if not tasks:
@@ -629,6 +655,23 @@ def main():
         correlation_path = output_dir / "drift_accuracy_correlations.csv"
         save_rows_csv(correlation_rows, correlation_path)
         print(f"[Saved] {correlation_path}")
+
+
+
+def main():
+    """Drift experiment: collect routes per variant, score drift, optionally evaluate."""
+    args = build_parser().parse_args()
+    output_dir, log_path, seed_settings, prompts, manifest_path, manifest_extra = _setup_run(args)
+
+    all_routes, variant_to_precision, variant_info = _collect_variants(args, prompts, output_dir)
+
+    computed = _compute_drift(args, all_routes, variant_to_precision)
+    if computed is None:
+        return
+    baseline_variant, baseline_metrics, summary_rows, layer_rows = computed
+
+    _write_drift_outputs(args, output_dir, prompts, summary_rows, layer_rows)
+    _evaluate_and_correlate(args, output_dir, summary_rows, variant_to_precision, baseline_variant)
 
     manifest_extra["status"] = "completed"
     manifest_extra["variants"] = {

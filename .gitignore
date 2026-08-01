@@ -2,9 +2,11 @@
 report.md
 /HPC_Outputs/
 /hpc_runs/
-/thunder/
+/thunder/**
+!/thunder/*.sh
 /temp/
-/tools/
+/tools/**
+!/tools/*.py
 /.pytest_cache/
 /.ruff_cache/
 /docs/
