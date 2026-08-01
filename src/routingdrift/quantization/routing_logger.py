@@ -100,31 +100,78 @@ class RoutingLogger:
         # Default: match exact dotted suffixes rather than a bare "gate" substring.
         return lower.endswith(_ROUTER_SUFFIXES)
 
-    def _extract_router_logits(self, output) -> torch.Tensor | None:
+    def _extract_router_logits(self, output, module=None, inputs=None) -> torch.Tensor | None:
         """
-        Router modules may return tensor directly or tuple/list.
-        This function tries to grab the tensor containing expert scores.
+        Recover the per-expert score tensor from whatever the router module returned.
+
+        Three shapes occur across the MoE families in this study:
+
+        1. A plain logits tensor  [..., num_experts]      -- OLMoE, Mixtral, Qwen2-MoE
+        2. A tuple whose first tensor is logits           -- some wrapped routers
+        3. A tuple of ALREADY-SELECTED results            -- DeepSeek's MoEGate, which
+           returns (topk_idx, topk_weight, aux_loss); the widest tensor is [tokens, top_k]
+           and there are no logits anywhere in the output
+
+        Case 3 is the dangerous one. Taking "the first tensor" there yields expert *indices*
+        of width top_k, and a naive topk over them produces plausible-looking nonsense. The
+        expert-width guard in `_make_hook` catches it, but catching is not the same as
+        supporting, so for case 3 we recompute the logits from the gate's own weight and the
+        hidden states the hook already receives. DeepSeek's MoEGate applies F.linear with a
+        bare `self.weight` parameter rather than an nn.Linear submodule, so there is nothing
+        else to hook.
         """
-        if torch.is_tensor(output):
-            return output
+        # 0-dim tensors are excluded: DeepSeek's MoEGate returns aux_loss as a scalar, and
+        # indexing shape[-1] on it raises IndexError.
+        def _usable(item) -> bool:
+            return torch.is_tensor(item) and item.ndim > 0
 
-        if isinstance(output, (tuple, list)):
-            for item in output:
-                if torch.is_tensor(item):
-                    return item
+        candidates = []
+        if _usable(output):
+            candidates.append(output)
+        elif isinstance(output, (tuple, list)):
+            candidates.extend(item for item in output if _usable(item))
+        else:
+            for attr in ("router_logits", "logits"):
+                value = getattr(output, attr, None)
+                if _usable(value):
+                    candidates.append(value)
 
-        # Some outputs may be objects with logits/router_logits attributes.
-        for attr in ["router_logits", "logits"]:
-            if hasattr(output, attr):
-                value = getattr(output, attr)
-                if torch.is_tensor(value):
-                    return value
+        expected = self.expected_num_experts
+        if expected is not None:
+            for tensor in candidates:
+                if tensor.shape[-1] == expected:
+                    return tensor
+            recomputed = self._logits_from_gate_weight(module, inputs)
+            if recomputed is not None:
+                return recomputed
 
-        return None
+        return candidates[0] if candidates else None
+
+    def _logits_from_gate_weight(self, module, inputs) -> torch.Tensor | None:
+        """
+        Rebuild router logits as `hidden_states @ gate.weight.T` for gates that expose a
+        raw weight parameter and return pre-selected indices (DeepSeek-style MoEGate).
+        """
+        if module is None or not inputs:
+            return None
+        weight = getattr(module, "weight", None)
+        hidden = inputs[0] if torch.is_tensor(inputs[0]) else None
+        if weight is None or hidden is None or weight.ndim != 2:
+            return None
+        if self.expected_num_experts is not None and weight.shape[0] != self.expected_num_experts:
+            return None
+        if hidden.shape[-1] != weight.shape[-1]:
+            return None
+        try:
+            return torch.nn.functional.linear(
+                hidden.reshape(-1, hidden.shape[-1]).to(weight.dtype), weight
+            )
+        except Exception:  # noqa: BLE001 - a failed reconstruction must not kill the run
+            return None
 
     def _make_hook(self, module_name: str):
         def hook_fn(module, inputs, output):
-            router_logits = self._extract_router_logits(output)
+            router_logits = self._extract_router_logits(output, module=module, inputs=inputs)
             if router_logits is None:
                 return
 
