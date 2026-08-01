@@ -1,1 +1,10 @@
 .env
+report.md
+/HPC_Outputs/
+/hpc_runs/
+/thunder/
+/temp/
+/tools/
+/.pytest_cache/
+/.ruff_cache/
+/docs/

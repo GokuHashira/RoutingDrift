@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "routingdrift"
+version = "0.2.0"
+description = "Routing fidelity as a systems metric: characterizing optimization-induced drift in Mixture-of-Experts LLMs"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "The RoutingDrift Authors" }]
+keywords = ["mixture-of-experts", "quantization", "triton", "torch.compile", "inference"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Single source of truth. Previously this was four separate requirements.txt files
+# (root, Compiler/, kernals/, quantization/) that had already drifted apart -- the
+# `dtype=` vs `torch_dtype=` crash came from code written against a newer transformers
+# than the pin.
+dependencies = [
+    "torch>=2.3.0",
+    "transformers==4.46.0",
+    "accelerate==0.34.0",
+    "bitsandbytes==0.44.1",
+    "safetensors==0.4.5",
+    "sentencepiece==0.2.0",
+    "protobuf==5.28.0",
+    "numpy==1.26.4",
+    "huggingface_hub==0.26.0",
+]
+
+[project.optional-dependencies]
+# Accuracy evaluation. Kept separate because lm-eval pulls a large dependency tree.
+eval = ["lm-eval==0.4.4", "datasets"]
+# Plotting and result tables.
+viz = ["pandas==2.2.3", "matplotlib==3.9.2", "seaborn==0.13.2", "tabulate>=0.9.0", "rich>=13.7.0"]
+# Triton kernels and GPU profiling (sub-study 1).
+kernels = ["triton==3.1.0", "nvidia-ml-py==12.560.30", "python-dotenv>=1.0.0"]
+# Pre-quantized Mixtral GPTQ checkpoints.
+gptq = ["auto-gptq", "optimum"]
+dev = ["ruff>=0.6", "pytest>=8.0"]
+all = ["routingdrift[eval,viz,kernels,dev]"]
+
+[project.urls]
+Repository = "https://github.com/GokuHashira/RoutingDrift"
+
+[project.scripts]
+routingdrift-experiment = "routingdrift.quantization.run_experiment:main"
+routingdrift-verify = "routingdrift.quantization.verify_reproducibility:main"
+routingdrift-build-prompts = "routingdrift.quantization.build_mmlu_prompts:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Without this, pytest also collects src/routingdrift/compiler/test_results.py, which is
+# a metrics module rather than a test.
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+# Legacy sub-studies carry ~1000 PEP 8 spacing violations (E225) from the original
+# coursework. They are excluded from the linter rather than reformatted, because
+# reformatting kernel and compiler code that cannot be executed on a laptop would be
+# an unverifiable change. Remove these entries as each package is cleaned and re-run.
+extend-exclude = ["src/routingdrift/compiler", "src/routingdrift/kernels", "src/routingdrift/reporting"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",  # line length is handled by the formatter
+    "B008",  # function call in argument default: argparse patterns rely on it
+    # PEP 585/604 modernization (List[str] -> list[str], Optional[X] -> X | None).
+    # requires-python is >=3.9, where those forms are only legal inside annotations
+    # guarded by `from __future__ import annotations`. Some annotations here ARE
+    # evaluated at runtime (dataclass fields), so blanket-applying these would trade a
+    # cosmetic win for a real breakage risk. Revisit if the floor moves to 3.10+.
+    "UP006",
+    "UP035",
+    "UP045",
+]
