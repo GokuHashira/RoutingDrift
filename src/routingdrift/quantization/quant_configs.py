@@ -25,8 +25,9 @@ and doubles as a direct test of the per-layer routing sensitivity already measur
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+import re
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Sequence
 
 import torch
 from transformers import BitsAndBytesConfig
@@ -92,21 +93,54 @@ def get(name: str) -> QuantConfigSpec:
     return BY_NAME[name]
 
 
-def skip_modules_for_layer_limit(model_config, first_n: int) -> List[str]:
-    """
-    Module-name substrings to leave unquantized so only layers [0, first_n) are quantized.
+_LAYER_PREFIX_RE = re.compile(r"^(.*\blayers\.\d+)\.")
 
-    bitsandbytes honours `llm_int8_skip_modules` for both 8-bit and 4-bit loads, despite
-    the name. Returning layer prefixes rather than full module paths keeps this working
-    across architectures whose block naming differs.
+
+def discover_router_layer_prefixes(model) -> List[str]:
     """
-    total = getattr(model_config, "num_hidden_layers", None)
-    if total is None:
-        raise ValueError("cannot apply a layer-coverage limit: config has no num_hidden_layers")
-    if first_n >= total:
+    Ordered module prefixes of the transformer blocks that actually contain a router.
+
+    Deliberately derived from the live module tree rather than `num_hidden_layers`, which
+    is wrong for two of the three models in this study:
+
+        DeepSeek-V2-Lite  27 layers, 26 routers -- layer 0 keeps a dense FFN
+        Qwen3.6-35B-A3B   hybrid blocks; not every layer carries an MoE FFN
+
+    Keying the layer dial off the config's layer count would silently quantize the wrong
+    blocks on both, and the drift numbers would look plausible while measuring something
+    other than what the config name claims.
+
+    The prefix is captured from the router's own path, so a nested language tower
+    (`language_model.model.layers.N....`) resolves correctly too.
+    """
+    from routingdrift.quantization.routing_logger import RoutingLogger
+
+    matcher = RoutingLogger(top_k=1)
+    prefixes: List[str] = []
+    for name, _ in model.named_modules():
+        if not matcher._is_target_router(name):
+            continue
+        match = _LAYER_PREFIX_RE.match(name)
+        if match and match.group(1) not in prefixes:
+            prefixes.append(match.group(1))
+
+    def _layer_index(prefix: str) -> int:
+        return int(prefix.rsplit(".", 1)[-1])
+
+    return sorted(prefixes, key=_layer_index)
+
+
+def skip_modules_for_layer_limit(router_layer_prefixes: Sequence[str], first_n: int) -> List[str]:
+    """
+    Module prefixes to leave unquantized so only the first `first_n` router-bearing
+    blocks are quantized.
+
+    bitsandbytes honours `llm_int8_skip_modules` for both 8-bit and 4-bit loads despite
+    the name. Pass the output of `discover_router_layer_prefixes`.
+    """
+    if first_n >= len(router_layer_prefixes):
         return []
-    # lm_head is already skipped by bitsandbytes; these are the blocks we additionally spare.
-    return [f"model.layers.{i}" for i in range(first_n, total)]
+    return list(router_layer_prefixes[first_n:])
 
 
 def describe_sweep() -> str:

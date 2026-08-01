@@ -74,7 +74,12 @@ class RoutingLogger:
     top_k: int = 2
     target_module_names: Optional[Sequence[str]] = None
     expected_num_experts: Optional[int] = None
+    # Also retain the full softmax over experts, not just the argmax-k. Needed for the
+    # gate-logit KL control: without it you cannot tell whether drift predicts quality
+    # beyond "the gate distribution simply got noisier".
+    capture_probs: bool = False
     records: List[RoutingRecord] = field(default_factory=list)
+    probs: Dict[str, List[torch.Tensor]] = field(default_factory=dict)
     handles: List[torch.utils.hooks.RemovableHandle] = field(default_factory=list)
     skipped_width_mismatch: Dict[str, int] = field(default_factory=dict)
 
@@ -145,6 +150,13 @@ class RoutingLogger:
             with torch.no_grad():
                 _, topk_indices = torch.topk(router_logits, k=self.top_k, dim=-1)
                 topk_indices = topk_indices.detach().cpu()
+                if self.capture_probs:
+                    # fp32 on the host: gate tensors are tiny (tokens x num_experts) and
+                    # the KL is meaningless if computed on fp16 tails.
+                    flat = router_logits.detach().reshape(-1, router_logits.shape[-1])
+                    self.probs.setdefault(module_name, []).append(
+                        torch.softmax(flat.float(), dim=-1).cpu()
+                    )
 
             self.records.append(
                 RoutingRecord(
@@ -196,6 +208,7 @@ class RoutingLogger:
 
     def clear(self) -> None:
         self.records.clear()
+        self.probs.clear()
 
     def remove(self) -> None:
         for handle in self.handles:
@@ -314,3 +327,69 @@ def find_router_modules(model) -> List[Tuple[str, str]]:
         print(f"  {name:80s} {class_name}")
 
     return candidates
+
+
+@torch.no_grad()
+def collect_routes_and_probs(
+    model,
+    tokenizer,
+    prompts: Sequence[str],
+    top_k: int = 2,
+    target_module_names: Optional[Sequence[str]] = None,
+    max_length: int = 256,
+    verbose: bool = True,
+) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List[torch.Tensor]]]:
+    """
+    Like `collect_routes`, but also returns the full per-token softmax over experts.
+
+    The probabilities are the control variable for the drift-quality analysis: they let
+    you ask whether routing drift predicts accuracy loss *beyond* what a general increase
+    in gate noise would explain. Kept as a separate entry point so `collect_routes`
+    callers are unaffected.
+    """
+    num_experts = infer_num_experts(getattr(model, "config", None))
+    logger = RoutingLogger(
+        top_k=top_k,
+        target_module_names=target_module_names,
+        expected_num_experts=num_experts,
+        capture_probs=True,
+    )
+    logger.attach(model, verbose=verbose)
+    logger.clear()
+
+    device = get_model_device(model)
+    for prompt in prompts:
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=max_length)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        _ = model(**inputs)
+
+    routes = logger.get_routes_by_module()
+    probs = {module: list(calls) for module, calls in logger.probs.items()}
+    logger.remove()
+    return routes, probs
+
+
+def mean_gate_kl(
+    baseline_probs: Dict[str, List[torch.Tensor]],
+    variant_probs: Dict[str, List[torch.Tensor]],
+    eps: float = 1e-12,
+) -> float:
+    """
+    Mean per-token KL(baseline || variant) over the gate distribution, averaged over all
+    router modules and token positions.
+
+    This is the "the gate just got noisier" null hypothesis, quantified. A drift metric
+    that adds nothing over this number is not a metric worth reporting.
+    """
+    totals, count = 0.0, 0
+    for module in sorted(set(baseline_probs) & set(variant_probs)):
+        for p_call, q_call in zip(baseline_probs[module], variant_probs[module]):
+            rows = min(p_call.shape[0], q_call.shape[0])
+            if rows == 0:
+                continue
+            p = p_call[:rows].double().clamp_min(eps)
+            q = q_call[:rows].double().clamp_min(eps)
+            kl = (p * (p.log() - q.log())).sum(dim=-1)
+            totals += float(kl.sum())
+            count += rows
+    return totals / count if count else 0.0

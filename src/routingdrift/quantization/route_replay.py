@@ -38,7 +38,6 @@ import torch
 
 from routingdrift.quantization.routing_logger import infer_num_experts
 
-
 RoutesByModule = Dict[str, List[torch.Tensor]]
 
 

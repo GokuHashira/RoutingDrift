@@ -61,6 +61,8 @@ def load_model(
     trust_remote_code: bool = True,
     offload_folder: str = "offload_cache",
     revision: str | None = None,
+    quant_config: Any = None,
+    skip_modules: Any = None,
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """
     Load OLMoE/Mixtral-style causal language models in FP16, INT8, or INT4.
@@ -83,6 +85,15 @@ def load_model(
             to whatever `main` points at on the day of the run, and a re-uploaded
             checkpoint would silently change the routing-drift numbers. Ignored for local
             checkpoint paths.
+        quant_config:
+            An explicit BitsAndBytesConfig, used by the sweep in `quant_configs.py` to
+            reach operating points the coarse fp16/int8/int4 labels cannot express
+            (outlier thresholds, fp4 vs nf4, double quantization). When given, it
+            overrides whatever `precision` would have built. Pass None for fp16.
+        skip_modules:
+            Module-name prefixes to leave unquantized (`llm_int8_skip_modules`, which
+            bitsandbytes honours for 4-bit loads too despite the name). This is how the
+            sweep's layer-coverage dial quantizes only the first N transformer blocks.
 
     Returns:
         model, tokenizer
@@ -92,6 +103,10 @@ def load_model(
     if precision not in SUPPORTED_PRECISIONS:
         raise ValueError(f"precision must be one of {sorted(SUPPORTED_PRECISIONS)}, got: {precision}")
     _validate_quantization_source(model_name, precision)
+
+    # An explicit quant_config takes over the quantized branch entirely. `precision` is
+    # still used to pick fp16 vs quantized, so callers pass precision="int4" alongside.
+    explicit_quant = quant_config is not None
 
     # `revision` is only meaningful for Hub ids; passing it alongside a local directory
     # makes transformers raise.
@@ -142,7 +157,13 @@ def load_model(
         if use_cpu_disk_offload:
             (Path(offload_folder) / precision).mkdir(parents=True, exist_ok=True)
 
-        if precision == "int8":
+        if explicit_quant:
+            # Sweep-supplied config. Attach the skip list here rather than in the spec so
+            # it can be resolved against the loaded model's actual layer count.
+            if skip_modules:
+                quant_config.llm_int8_skip_modules = list(skip_modules)
+                print(f"[load_model] leaving {len(skip_modules)} module prefixes unquantized")
+        elif precision == "int8":
             quant_config = BitsAndBytesConfig(
                 load_in_8bit=True,
                 llm_int8_enable_fp32_cpu_offload=use_cpu_disk_offload,
