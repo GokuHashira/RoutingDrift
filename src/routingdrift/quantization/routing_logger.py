@@ -1,0 +1,316 @@
+"""
+routing_logger.py
+
+Utilities to hook into MoE router/gate layers and log top-k selected experts per token.
+
+Main pieces:
+    RoutingLogger
+    find_router_modules(model)
+    collect_routes(model, tokenizer, prompts)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Sequence, Tuple
+
+import torch
+
+from routingdrift.quantization.model_loader import get_model_device
+
+
+@dataclass
+class RoutingRecord:
+    """Stores router selections for one forward hook call."""
+
+    module_name: str
+    topk_indices: torch.Tensor
+    shape: Tuple[int, ...]
+
+
+# Module-name substrings that contain "gate" but are NEVER the router.
+#   *.experts.N.gate_proj       - per-expert SwiGLU input projection (OLMoE, Mixtral, Qwen)
+#   *.mlp.shared_expert_gate    - Qwen2-MoE's always-on shared-expert scalar gate
+# Hooking these silently produces garbage: gate_proj emits `intermediate_size` values, so
+# torch.topk succeeds and returns "expert ids" that are really FFN channel indices.
+_NON_ROUTER_SUBSTRINGS = (
+    "gate_proj",
+    "gate_up_proj",
+    "shared_expert_gate",
+    "gate_norm",
+)
+
+# Exact dotted suffixes of real router modules, across the MoE families in this study.
+_ROUTER_SUFFIXES = (
+    "mlp.gate",  # OLMoE, Qwen2-MoE, DeepSeek-MoE
+    "block_sparse_moe.gate",  # Mixtral
+    "mlp.router",
+    "feed_forward.router",
+    "moe.gate",
+    "moe.router",
+)
+
+
+def infer_num_experts(config) -> Optional[int]:
+    """
+    Read the routed-expert count off an HF config. Attribute name varies by family:
+    OLMoE/Qwen2-MoE use `num_experts`, Mixtral `num_local_experts`, DeepSeek `n_routed_experts`.
+    """
+    for attr in ("num_experts", "num_local_experts", "n_routed_experts", "moe_num_experts"):
+        value = getattr(config, attr, None)
+        if isinstance(value, int) and value > 0:
+            return value
+    return None
+
+
+@dataclass
+class RoutingLogger:
+    """
+    Forward-hook logger for MoE router/gate layers.
+
+    It captures router logits, applies torch.topk, and stores expert indices.
+    """
+
+    top_k: int = 2
+    target_module_names: Optional[Sequence[str]] = None
+    expected_num_experts: Optional[int] = None
+    records: List[RoutingRecord] = field(default_factory=list)
+    handles: List[torch.utils.hooks.RemovableHandle] = field(default_factory=list)
+    skipped_width_mismatch: Dict[str, int] = field(default_factory=dict)
+
+    def _is_target_router(self, module_name: str) -> bool:
+        lower = module_name.lower()
+
+        # Applied even when explicit targets are given: these modules are never routers,
+        # so matching one always means a mis-specified filter, not an intentional choice.
+        if any(bad in lower for bad in _NON_ROUTER_SUBSTRINGS):
+            return False
+        # Anything inside the expert stack is expert-internal, not the router that selects it.
+        if ".experts." in lower:
+            return False
+
+        if self.target_module_names:
+            return any(target.lower() in lower for target in self.target_module_names)
+
+        # Default: match exact dotted suffixes rather than a bare "gate" substring.
+        return lower.endswith(_ROUTER_SUFFIXES)
+
+    def _extract_router_logits(self, output) -> torch.Tensor | None:
+        """
+        Router modules may return tensor directly or tuple/list.
+        This function tries to grab the tensor containing expert scores.
+        """
+        if torch.is_tensor(output):
+            return output
+
+        if isinstance(output, (tuple, list)):
+            for item in output:
+                if torch.is_tensor(item):
+                    return item
+
+        # Some outputs may be objects with logits/router_logits attributes.
+        for attr in ["router_logits", "logits"]:
+            if hasattr(output, attr):
+                value = getattr(output, attr)
+                if torch.is_tensor(value):
+                    return value
+
+        return None
+
+    def _make_hook(self, module_name: str):
+        def hook_fn(module, inputs, output):
+            router_logits = self._extract_router_logits(output)
+            if router_logits is None:
+                return
+
+            # Router logits should normally end with num_experts dimension.
+            # top_k selected expert ids are taken along the final dimension.
+            if router_logits.shape[-1] < self.top_k:
+                return
+
+            # Width guard. If the last dim is not the routed-expert count, this hook is on
+            # the wrong module (or on a gate that returns pre-selected indices rather than
+            # logits, e.g. DeepSeek's MoEGate). Skipping loudly beats logging channel
+            # indices as if they were expert ids.
+            if self.expected_num_experts is not None and router_logits.shape[-1] != self.expected_num_experts:
+                count = self.skipped_width_mismatch.get(module_name, 0)
+                if count == 0:
+                    print(
+                        f"[RoutingLogger] SKIP {module_name}: output width "
+                        f"{router_logits.shape[-1]} != num_experts {self.expected_num_experts}"
+                    )
+                self.skipped_width_mismatch[module_name] = count + 1
+                return
+
+            with torch.no_grad():
+                _, topk_indices = torch.topk(router_logits, k=self.top_k, dim=-1)
+                topk_indices = topk_indices.detach().cpu()
+
+            self.records.append(
+                RoutingRecord(
+                    module_name=module_name,
+                    topk_indices=topk_indices,
+                    shape=tuple(topk_indices.shape),
+                )
+            )
+
+        return hook_fn
+
+    def attach(self, model, verbose: bool = True, strict: bool = True) -> None:
+        """
+        Attach hooks to matching router/gate modules.
+
+        With `strict=True` (default), attaching zero hooks raises instead of quietly
+        producing an empty route set -- the failure mode that made the first Mixtral run
+        look like it had succeeded.
+        """
+        self.remove()
+        self.clear()
+        self.skipped_width_mismatch.clear()
+
+        if self.expected_num_experts is None:
+            self.expected_num_experts = infer_num_experts(getattr(model, "config", None))
+
+        for name, module in model.named_modules():
+            if self._is_target_router(name):
+                handle = module.register_forward_hook(self._make_hook(name))
+                self.handles.append(handle)
+                if verbose:
+                    print(f"[RoutingLogger] Attached hook to: {name}")
+
+        if not self.handles:
+            message = (
+                "No router/gate modules matched. Run find_router_modules(model) to list "
+                "candidates, then pass --target_module with the correct substring "
+                "(e.g. block_sparse_moe.gate for Mixtral)."
+            )
+            if strict:
+                raise RuntimeError(f"[RoutingLogger] {message}")
+            if verbose:
+                print(f"[RoutingLogger] WARNING: {message}")
+        elif verbose:
+            print(
+                f"[RoutingLogger] {len(self.handles)} router hooks attached "
+                f"(num_experts={self.expected_num_experts}, top_k={self.top_k})"
+            )
+
+    def clear(self) -> None:
+        self.records.clear()
+
+    def remove(self) -> None:
+        for handle in self.handles:
+            handle.remove()
+        self.handles.clear()
+
+    def get_routes_by_module(self) -> Dict[str, List[torch.Tensor]]:
+        routes: Dict[str, List[torch.Tensor]] = {}
+        for record in self.records:
+            routes.setdefault(record.module_name, []).append(record.topk_indices)
+        return routes
+
+
+@torch.no_grad()
+def collect_routes(
+    model,
+    tokenizer,
+    prompts: Sequence[str],
+    top_k: int = 2,
+    target_module_names: Optional[Sequence[str]] = None,
+    max_length: int = 256,
+    verbose: bool = True,
+    strict: bool = True,
+) -> Dict[str, List[torch.Tensor]]:
+    """
+    Run fixed prompts through the model and collect top-k expert selections.
+
+    Args:
+        model, tokenizer:
+            Loaded from load_model.
+        prompts:
+            Fixed prompt set. Use the same prompts for FP16/INT8/INT4.
+        top_k:
+            Number of experts selected per token. Mixtral commonly uses top_k=2.
+        target_module_names:
+            Optional list of router module name substrings to hook.
+            Example for Mixtral: ["block_sparse_moe.gate"]
+        max_length:
+            Tokenizer truncation length.
+        verbose:
+            Print hook information.
+        strict:
+            Raise if no router modules match or no routes are captured, instead of
+            returning an empty dict that later stages would silently treat as valid.
+
+    Returns:
+        Dictionary: module_name -> list of top-k tensors from each forward pass.
+    """
+
+    num_experts = infer_num_experts(getattr(model, "config", None))
+    if num_experts is not None and top_k > num_experts:
+        raise ValueError(
+            f"top_k={top_k} exceeds the model's routed-expert count ({num_experts}). "
+            "Check --top_k: OLMoE routes top-8 of 64, Mixtral top-2 of 8."
+        )
+
+    logger = RoutingLogger(
+        top_k=top_k,
+        target_module_names=target_module_names,
+        expected_num_experts=num_experts,
+    )
+    logger.attach(model, verbose=verbose, strict=strict)
+    logger.clear()
+
+    device = get_model_device(model)
+
+    for i, prompt in enumerate(prompts):
+        if verbose:
+            print(f"[collect_routes] Prompt {i + 1}/{len(prompts)}")
+
+        inputs = tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_length,
+        )
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        _ = model(**inputs)
+
+    routes = logger.get_routes_by_module()
+    skipped = dict(logger.skipped_width_mismatch)
+    logger.remove()
+
+    if skipped:
+        print(f"[collect_routes] WARNING: {len(skipped)} hooked module(s) skipped on width mismatch: {sorted(skipped)}")
+    if strict and not routes:
+        raise RuntimeError(
+            "Hooks attached but captured zero routes. The hooked modules never fired, or "
+            "every call was skipped by the expert-width guard (see warnings above)."
+        )
+    if verbose:
+        total_rows = sum(
+            call.reshape(-1, call.shape[-1]).shape[0] for calls in routes.values() for call in calls
+        )
+        print(f"[collect_routes] captured {len(routes)} modules, {total_rows} token rows total")
+
+    return routes
+
+
+def find_router_modules(model) -> List[Tuple[str, str]]:
+    """
+    Print and return candidate router/gate modules.
+    Run this once if hooks do not attach correctly.
+    """
+    candidates = []
+    keywords = ["router", "gate", "moe", "expert"]
+
+    for name, module in model.named_modules():
+        lower = name.lower()
+        if any(keyword in lower for keyword in keywords):
+            candidates.append((name, module.__class__.__name__))
+
+    print("\nCandidate router/MoE modules:")
+    for name, class_name in candidates:
+        print(f"  {name:80s} {class_name}")
+
+    return candidates
