@@ -95,11 +95,27 @@ CASES = {
             "model.layers.0.mlp.experts.0.gate_proj",
         ],
     },
-    "DeepSeek-MoE-16B": {
+    # Second model in the study: 64 routed + 2 shared, top-6. Layer 0 has a dense FFN
+    # ("all FFNs except for the first layer are replaced with MoE layers"), so its router
+    # count is 26, not num_hidden_layers=27.
+    "DeepSeek-V2-Lite": {
         "routers": ["model.layers.1.mlp.gate"],
         "decoys": [
+            "model.layers.0.mlp.gate_proj",  # layer 0 is a plain dense FFN, no router
             "model.layers.1.mlp.experts.0.gate_proj",
             "model.layers.1.mlp.shared_experts.gate_proj",
+            "model.layers.1.self_attn.kv_a_proj_with_mqa",  # MLA projection
+        ],
+    },
+    # Third model: 256 routed + 1 shared, top-8, hybrid blocks, plus a vision tower whose
+    # modules must never be hooked.
+    "Qwen3.6-35B-A3B": {
+        "routers": ["model.layers.0.mlp.gate"],
+        "decoys": [
+            "model.layers.0.mlp.shared_expert_gate",
+            "model.layers.0.mlp.shared_expert.gate_proj",
+            "model.layers.0.mlp.experts.255.gate_proj",
+            "visual.blocks.0.mlp.gate_proj",
         ],
     },
 }
