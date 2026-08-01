@@ -39,6 +39,7 @@ from typing import Dict, List, Optional
 
 import torch
 
+from routingdrift.output_guard import assert_safe_output_dir
 from routingdrift.quantization import quant_configs
 from routingdrift.quantization.analysis_utils import (
     _pearson_corr,
@@ -81,7 +82,7 @@ def _precision_for(spec: quant_configs.QuantConfigSpec) -> str:
 
 
 def run_sweep(args: argparse.Namespace) -> int:
-    output_dir = Path(args.output_dir)
+    output_dir = assert_safe_output_dir(args.output_dir, "sweep results")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     log_path = start_run_log(output_dir, name="sweep")

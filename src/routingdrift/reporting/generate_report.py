@@ -590,9 +590,11 @@ def print_recommendation(matrix, methods, criteria, drift_rows, olmoe_amdahl, co
 # ── main ──────────────────────────────────────────────────────────────────────
 def main():
     parser=argparse.ArgumentParser(description="Generate final cross-study report plots")
-    parser.add_argument("--out", default="results/report_plots",
+    parser.add_argument("--out", default="results/report_plots_rerun",
                         help="Output directory for figures (default: results/report_plots).")
     args=parser.parse_args()
+    from routingdrift.output_guard import assert_safe_output_dir
+    assert_safe_output_dir(args.out, "report figures")
 
     olmoe_rows    =_load_csv(OLMOE_BENCH)
     olmoe_amdahl  =_load_csv(OLMOE_AMDAHL)

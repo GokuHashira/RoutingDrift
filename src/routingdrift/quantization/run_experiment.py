@@ -26,6 +26,7 @@ from typing import Dict, List, Optional
 
 import torch
 
+from routingdrift.output_guard import assert_safe_output_dir
 from routingdrift.quantization.analysis_utils import (
     build_drift_accuracy_rows,
     plot_layer_heatmap,
@@ -383,7 +384,7 @@ def main():
 
     args = parser.parse_args()
 
-    output_dir = Path(args.output_dir)
+    output_dir = assert_safe_output_dir(args.output_dir, "drift results")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Logging and seeding come first: the log must capture model loading, and

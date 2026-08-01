@@ -318,7 +318,9 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = ap.parse_args()
 
-    output_dir = Path(args.output_dir)
+    from routingdrift.output_guard import assert_safe_output_dir
+
+    output_dir = assert_safe_output_dir(args.output_dir, "replay results")
     output_dir.mkdir(parents=True, exist_ok=True)
     log_path = start_run_log(output_dir, name="replay")
     seed_settings = set_global_seed(seed=args.seed)

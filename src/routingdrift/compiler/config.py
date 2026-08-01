@@ -81,7 +81,7 @@ BENCH_CFG=BenchmarkConfig()
 
 # Overridable so a re-run does not clobber committed results:
 #   ROUTINGDRIFT_COMPILER_OUT=results/compiler_rerun python -m routingdrift.compiler.main
-OUTPUT_DIR=os.environ.get("ROUTINGDRIFT_COMPILER_OUT", "results/compiler")
+OUTPUT_DIR=os.environ.get("ROUTINGDRIFT_COMPILER_OUT", "results/compiler_rerun")
 GRAPH11_PATH=f"{OUTPUT_DIR}/graph11_graph_breaks.png"
 GRAPH12_PATH=f"{OUTPUT_DIR}/graph12_compile_modes.png"
 GRAPH13_PATH=f"{OUTPUT_DIR}/graph13_roofline.png"

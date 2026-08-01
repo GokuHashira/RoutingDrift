@@ -45,6 +45,10 @@ def _open(path: str) -> None:
 
 
 def main() -> None:
+    from routingdrift.output_guard import assert_safe_output_dir
+    from routingdrift.compiler.config import OUTPUT_DIR
+
+    assert_safe_output_dir(OUTPUT_DIR, "compiler outputs")
     print(f"\nDevice: {DEVICE}  dtype: {DTYPE}")
 
     # 1. Build models
