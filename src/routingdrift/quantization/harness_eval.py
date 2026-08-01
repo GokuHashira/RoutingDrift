@@ -81,9 +81,18 @@ def run_lm_eval(
     batch_size: str = "auto",
     limit: int | None = None,
     device: str = "cuda",
+    quant_config: Any = None,
+    skip_modules: Any = None,
+    revision: str | None = None,
 ) -> dict[str, Any]:
     """
     Run lm-evaluation-harness via Python API and persist full JSON output.
+
+    `quant_config`/`skip_modules` must be forwarded whenever the caller is evaluating a
+    specific sweep configuration. Without them this falls back to bitsandbytes' default
+    int8/int4 settings, so every nf4/fp4/threshold variant would be scored with the same
+    weights: 15 distinct drift values collapsing onto 2 distinct accuracy values, and a
+    correlation computed over that would be an artifact.
     """
     try:
         import lm_eval
@@ -114,7 +123,13 @@ def run_lm_eval(
             precision=precision,
             device_map="auto",
             trust_remote_code=True,
+            revision=revision,
+            quant_config=quant_config,
+            skip_modules=skip_modules,
         )
+        from routingdrift.quantization.model_loader import summarize_quantized_modules
+
+        print(f"[lm-eval] {summarize_quantized_modules(model)}")
         lm = HFLM(
             pretrained=model,
             tokenizer=tokenizer,

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -47,7 +48,11 @@ from routingdrift.quantization.analysis_utils import (
 from routingdrift.quantization.drift import summarize_research_metrics
 from routingdrift.quantization.harness_eval import extract_task_accuracies, run_lm_eval
 from routingdrift.quantization.io_utils import save_prompts_txt, save_routes_json
-from routingdrift.quantization.model_loader import load_model
+from routingdrift.quantization.model_loader import (
+    load_model,
+    peak_vram_gb,
+    summarize_quantized_modules,
+)
 from routingdrift.quantization.repro import (
     DEFAULT_SEED,
     collect_run_manifest,
@@ -141,6 +146,10 @@ def run_sweep(args: argparse.Namespace) -> int:
                     f"identical to full quantization."
                 )
 
+        started = time.time()
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+
         model, tokenizer = load_model(
             model_name=args.model_name,
             precision=_precision_for(spec),
@@ -148,6 +157,11 @@ def run_sweep(args: argparse.Namespace) -> int:
             quant_config=quant_config,
             skip_modules=skip_modules or None,
         )
+        # Evidence for the one assumption in this sweep that has never run on hardware:
+        # that bitsandbytes honours llm_int8_skip_modules on 4-bit loads. If it does not,
+        # the five nf4_L* configs are silently identical to full quantization.
+        quant_audit = summarize_quantized_modules(model)
+        print(f"[sweep] {quant_audit}")
         if resolved_revision is None:
             resolved_revision = resolve_checkpoint_revision(model)
 
@@ -167,6 +181,8 @@ def run_sweep(args: argparse.Namespace) -> int:
         )
         save_routes_json(routes, output_dir / f"routes_{spec.name}.json")
 
+        elapsed = time.time() - started
+        vram = peak_vram_gb()
         del model, tokenizer
         _free()
 
@@ -195,9 +211,13 @@ def run_sweep(args: argparse.Namespace) -> int:
             "overlap_at_k": round(metrics["overlap_at_k"], 6),
             "selection_shift": round(metrics["selection_shift"], 6),
             "gate_kl": round(kl, 8),
+            "quant_audit": quant_audit,
+            "peak_vram_gb": round(vram, 2),
+            "seconds": round(elapsed, 1),
         }
         drift_rows.append(row)
-        print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  gate_kl={row['gate_kl']:.3e}")
+        print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  "
+              f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  {elapsed:.0f}s")
 
         if args.run_lm_eval:
             tasks = [t for arg in args.lm_eval_tasks for t in arg.split(",") if t.strip()]
@@ -212,6 +232,11 @@ def run_sweep(args: argparse.Namespace) -> int:
                     batch_size=args.lm_eval_batch_size,
                     limit=args.lm_eval_limit,
                     device=args.lm_eval_device,
+                    # Must match the config whose drift we just measured, or the
+                    # correlation pairs drift from one setting with accuracy from another.
+                    quant_config=spec.build(),
+                    skip_modules=skip_modules or None,
+                    revision=args.revision,
                 )
             except Exception as exc:  # noqa: BLE001 - one bad config must not kill the sweep
                 print(f"[sweep] lm-eval FAILED for {spec.name}: {type(exc).__name__}: {exc}")

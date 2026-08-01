@@ -197,3 +197,56 @@ def get_model_device(model) -> torch.device:
         return next(model.parameters()).device
     except StopIteration:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def summarize_quantized_modules(model) -> str:
+    """
+    One-line audit of which Linear layers actually ended up quantized.
+
+    This exists because the sweep's layer-coverage dial rests on an assumption that has
+    never been executed on hardware: that bitsandbytes honours `llm_int8_skip_modules`
+    for 4-bit loads, not just 8-bit. If it does not, the nf4_L2..nf4_L16 configs are all
+    silently identical to full quantization, and the drift/accuracy correlation gains five
+    duplicate points that look like real data.
+
+    Printed after every quantized load so a log can settle the question.
+    """
+    import re
+    from collections import Counter
+
+    per_layer: Counter = Counter()
+    kinds: Counter = Counter()
+    total_linear = 0
+    for name, module in model.named_modules():
+        cls = type(module).__name__
+        if "Linear" not in cls:
+            continue
+        total_linear += 1
+        if cls in ("Linear4bit", "Linear8bitLt", "Params4bit"):
+            kinds[cls] += 1
+            match = re.search(r"\blayers\.(\d+)\b", name)
+            if match:
+                per_layer[int(match.group(1))] += 1
+
+    quantized = sum(kinds.values())
+    if not quantized:
+        return f"quantized modules: 0 of {total_linear} Linear (model is unquantized)"
+
+    layers = sorted(per_layer)
+    if layers:
+        contiguous = layers == list(range(layers[0], layers[-1] + 1))
+        span = f"layers {layers[0]}-{layers[-1]}" + ("" if contiguous else " (non-contiguous)")
+    else:
+        span = "no layer-indexed modules"
+    kind_desc = ", ".join(f"{k}={v}" for k, v in sorted(kinds.items()))
+    return (
+        f"quantized modules: {quantized} of {total_linear} Linear [{kind_desc}]; "
+        f"{len(layers)} layers touched, {span}"
+    )
+
+
+def peak_vram_gb() -> float:
+    """Peak CUDA allocation this process has reached, in GiB. 0.0 on CPU."""
+    if not torch.cuda.is_available():
+        return 0.0
+    return torch.cuda.max_memory_allocated() / 1024**3
