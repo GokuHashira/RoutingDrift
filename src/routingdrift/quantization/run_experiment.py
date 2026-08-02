@@ -467,9 +467,14 @@ def _collect_variants(args, prompts, output_dir):
             output_dir=output_dir,
             inspect_modules=args.inspect_modules,
             revision=args.revision,
-            # Only the baseline needs the double pass; if it is deterministic, the
-            # quantized variants share the same code path and inputs.
-            repeat_for_determinism=(precision == baseline_precision and not args.skip_determinism_check),
+            # Every precision, not just the baseline. The original reasoning -- "if the
+            # baseline is deterministic the quantized variants share the same code path"
+            # -- is wrong: the quantized variants additionally run bitsandbytes'
+            # quantization, which the fp16 path never touches. Until this is measured,
+            # every drift number in the sweep has unknown error bars, and a cross-machine
+            # difference cannot be told apart from run-to-run noise. One extra prefill
+            # pass per precision, so seconds.
+            repeat_for_determinism=not args.skip_determinism_check,
         )
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = precision
@@ -684,9 +689,18 @@ def main():
         }
         for variant in all_routes
     }
+    determinism_by_variant = {
+        variant: info["determinism"]
+        for variant, info in variant_info.items()
+        if isinstance(info, dict) and "determinism" in info
+    }
     manifest_extra["guards"] = {
         "baseline_self_consistency_rs": baseline_metrics["routing_similarity_rs"],
         "determinism_check": variant_info.get(baseline_variant, {}).get("determinism"),
+        "determinism_by_variant": determinism_by_variant,
+        "all_variants_deterministic": all(
+            d.get("identical") for d in determinism_by_variant.values()
+        ) if determinism_by_variant else None,
     }
     save_run_manifest(
         collect_run_manifest(args.model_name, seed_settings, manifest_extra),

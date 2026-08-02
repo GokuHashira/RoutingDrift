@@ -69,7 +69,12 @@ def digest(results_dir: Path) -> None:
               f"| bnb {pkgs.get('bitsandbytes')} | lm_eval {pkgs.get('lm_eval')}")
         print(f"  revision   : {m.get('resolved_revision') or (m.get('variants') or {})}")
         if guards:
-            print(f"  guards     : {json.dumps(guards)}")
+            print(f"  guards     : self_consistency_rs={guards.get('baseline_self_consistency_rs')} "
+                  f"all_deterministic={guards.get('all_variants_deterministic')}")
+            for variant, det in (guards.get("determinism_by_variant") or {}).items():
+                flag = "" if det.get("identical") else "   <-- NOT DETERMINISTIC"
+                print(f"               {variant:<10} identical={det.get('identical')} "
+                      f"mismatched_rows={det.get('mismatched_rows')}{flag}")
 
         # Q1: did llm_int8_skip_modules actually work for 4-bit loads?
         sweep_csv = run / "sweep_drift.csv"

@@ -145,8 +145,10 @@ def _gpu_report() -> None:
 
 
 OLMOE = "allenai/OLMoE-1B-7B-0924"
-# Set once the smoke test reports the resolved SHA, then everything after is pinned.
-REVISION = ""
+# Resolved by the 2026-08-02 smoke run and pinned here so every later stage sees the same
+# weights. An unpinned id resolves to whatever main points at on the day, and the three
+# models' results would stop being comparable across sessions.
+REVISION = "6d84c48581ece794365f2b8e9cfb043c68ade9c5"
 
 
 def _rev():
