@@ -246,8 +246,12 @@ def task1(n_prompts: int = 100, lm_eval_limit: int = 500):
         "--output_dir", f"{RESULTS}/olmoe_top8",
         "--top_k", "8", "--max_length", "128", "--seed", "0",
         "--run_lm_eval",
-        # GSM8K stays here for the descriptive table but is dropped from the sweep.
-        "--lm_eval_tasks", "mmlu", "gsm8k", "hellaswag",
+        # GSM8K removed. It is the only generative task, and its generate_until phase dies
+        # with "cuDNN Frontend error: No execution plans support the graph" on this stack.
+        # It was already the weakest column: OLMoE scores ~8%, close enough to the floor
+        # that an accuracy drop carries no signal. Re-add with --lm_eval_tasks if the
+        # descriptive number is wanted and the cuDNN path is fixed.
+        "--lm_eval_tasks", "mmlu", "hellaswag",
         "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
         "--lm_eval_limit", str(lm_eval_limit), "--lm_eval_device", "cuda",
     )

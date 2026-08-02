@@ -107,6 +107,36 @@ def _patch_lm_eval_git_hash(lm_eval_module) -> None:
         evaluator.get_git_commit_hash = lambda: "unknown"
 
 
+class _relaxed_cudnn:
+    """
+    Temporarily allow non-deterministic cuDNN algorithms.
+
+    set_global_seed pins cudnn.deterministic=True so routing is bit-reproducible. That
+    restricts cuDNN to deterministic execution plans, and during generation at batch sizes
+    around 60 there may be none, which surfaces as:
+
+        cuDNN Frontend error: [cudnn_frontend] Error: No execution plans support the graph
+
+    Accuracy evaluation is greedy and does not need bit-determinism the way route logging
+    does, so the constraint is relaxed here and restored afterwards. Route collection is
+    unaffected: it happens outside this scope.
+    """
+
+    def __enter__(self):
+        import torch
+
+        self._prev = (torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
+        return self
+
+    def __exit__(self, *_exc):
+        import torch
+
+        torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = self._prev
+        return False
+
+
 def run_lm_eval(
     model_name: str,
     precision: str,
@@ -177,13 +207,14 @@ def run_lm_eval(
             clean_up_tokenization_spaces=False,
         )
         try:
-            results = lm_eval.simple_evaluate(
-                model=lm,
-                tasks=tasks,
-                num_fewshot=num_fewshot,
-                batch_size=batch_size,
-                limit=limit,
-            )
+            with _relaxed_cudnn():
+                results = lm_eval.simple_evaluate(
+                    model=lm,
+                    tasks=tasks,
+                    num_fewshot=num_fewshot,
+                    batch_size=batch_size,
+                    limit=limit,
+                )
         finally:
             del lm
             del model
@@ -195,14 +226,15 @@ def run_lm_eval(
             precision=precision,
             device=device,
         )
-        results = lm_eval.simple_evaluate(
-            model="hf",
-            model_args=model_args,
-            tasks=tasks,
-            num_fewshot=num_fewshot,
-            batch_size=batch_size,
-            limit=limit,
-        )
+        with _relaxed_cudnn():
+            results = lm_eval.simple_evaluate(
+                model="hf",
+                model_args=model_args,
+                tasks=tasks,
+                num_fewshot=num_fewshot,
+                batch_size=batch_size,
+                limit=limit,
+            )
 
     sanitized = _sanitize_for_json(results)
     output_path = Path(output_path)

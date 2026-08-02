@@ -234,26 +234,33 @@ def _run_lm_eval_matrix(
 
     for variant in variants_for_eval:
         precision = variant_to_precision[variant]
-        output_path = eval_output_dir / f"lm_eval_{_sanitize_name_for_filename(variant)}.json"
-        print(f"\n========== Running lm-eval for {variant} ({','.join(tasks)}) ==========")
-        try:
-            result = run_lm_eval(
-                model_name=model_name,
-                precision=precision,
-                tasks=tasks,
-                output_path=output_path,
-                num_fewshot=num_fewshot,
-                batch_size=batch_size,
-                limit=limit,
-                device=device,
-            )
-        except Exception as exc:
-            print(f"[lm-eval WARNING] Skipping variant '{variant}' due to error: {exc}")
-            continue
-        parsed = extract_task_accuracies(result, tasks)
+
+        # One task per call. Previously all tasks went through a single simple_evaluate,
+        # so GSM8K failing during generation discarded the MMLU and HellaSwag results
+        # already computed in the same call -- ten minutes of finished work thrown away
+        # because a later task in the same batch broke. Paying a model reload per task is
+        # cheap next to that.
         for task in tasks:
-            task_info = parsed.get(task)
+            output_path = eval_output_dir / f"lm_eval_{_sanitize_name_for_filename(variant)}_{task}.json"
+            print(f"\n========== lm-eval {variant} / {task} ==========")
+            try:
+                result = run_lm_eval(
+                    model_name=model_name,
+                    precision=precision,
+                    tasks=[task],
+                    output_path=output_path,
+                    num_fewshot=num_fewshot,
+                    batch_size=batch_size,
+                    limit=limit,
+                    device=device,
+                )
+            except Exception as exc:  # noqa: BLE001 - one task must not sink the rest
+                print(f"[lm-eval WARNING] {variant}/{task} failed: {type(exc).__name__}: {exc}")
+                continue
+
+            task_info = extract_task_accuracies(result, [task]).get(task)
             if not task_info:
+                print(f"[lm-eval WARNING] {variant}/{task} produced no parseable metric")
                 continue
             eval_rows.append(
                 {
@@ -263,6 +270,8 @@ def _run_lm_eval_matrix(
                     "metric": str(task_info["metric"]),
                 }
             )
+            print(f"[lm-eval] {variant}/{task} = {task_info['accuracy']:.4f} "
+                  f"({task_info['metric']})")
 
     return eval_rows
 
