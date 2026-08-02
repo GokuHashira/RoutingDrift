@@ -68,6 +68,29 @@ def digest(results_dir: Path) -> None:
         print(f"  versions   : torch {pkgs.get('torch')} | transformers {pkgs.get('transformers')} "
               f"| bnb {pkgs.get('bitsandbytes')} | lm_eval {pkgs.get('lm_eval')}")
         print(f"  revision   : {m.get('resolved_revision') or (m.get('variants') or {})}")
+        g = m.get("git") or {}
+        print(f"  git        : {(g.get('commit') or 'MISSING')[:12]} "
+              f"dirty={g.get('dirty')} {g.get('source', '')}")
+
+        # Drift and the KL control must not be collinear. If they are, the sweep cannot
+        # tell "routing fidelity predicts quality" from "the gate got noisier", and the
+        # correlation table answers nothing.
+        sweep_rows = _rows(run / "sweep_drift.csv")
+        pairs = [(float(r["jaccard_drift"]), float(r["gate_kl"]))
+                 for r in sweep_rows
+                 if r.get("config") != "fp16" and r.get("jaccard_drift") and r.get("gate_kl")]
+        if len(pairs) >= 3:
+            xs, ys = zip(*pairs)
+            mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+            num = sum((a - mx) * (b - my) for a, b in pairs)
+            den = (sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys)) ** 0.5
+            if den:
+                r_dk = num / den
+                print(f"  drift~kl   : pearson={r_dk:+.3f} over {len(pairs)} configs")
+                if abs(r_dk) > 0.95:
+                    print("               ^ COLLINEAR. The sweep cannot separate routing")
+                    print("                 fidelity from gate noise; replay carries the")
+                    print("                 causal claim instead.")
         if guards:
             print(f"  guards     : self_consistency_rs={guards.get('baseline_self_consistency_rs')} "
                   f"all_deterministic={guards.get('all_variants_deterministic')}")
