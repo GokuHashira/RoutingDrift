@@ -138,10 +138,26 @@ def run_for_precision(
             existing = resolve_routes_path(routes_path)
             raw = load_routes_raw(existing)
             routes = {m: [torch.tensor(c) for c in calls] for m, calls in raw.items()}
-            rows = sum(t.reshape(-1, t.shape[-1]).shape[0] for calls in routes.values() for t in calls)
-            print(f"\n========== REUSING {variant_name} from {existing.name} "
-                  f"({len(routes)} modules, {rows} rows) ==========")
-            return routes, {"resumed_from": str(existing)}
+
+            # One forward pass per prompt means one recorded call per prompt. A mismatch
+            # means the dump came from a different prompt set, and reusing it would
+            # compare route sets of different lengths -- which _score_route_pair handles
+            # by truncating to the shorter and zero-filling, producing drift numbers
+            # rather than an error.
+            #
+            # This is not hypothetical: an output directory ended up holding 100-prompt
+            # dumps for fp16 and int4 next to a 5-prompt dump for int8, left behind by an
+            # earlier run whose MMLU download had silently fallen back.
+            call_counts = {len(calls) for calls in routes.values()}
+            if call_counts != {len(prompts)}:
+                print(f"\n[resume] IGNORING {existing.name}: it holds {sorted(call_counts)} "
+                      f"call(s) per module but this run has {len(prompts)} prompts. "
+                      f"Recomputing rather than mixing prompt sets.")
+            else:
+                rows = sum(t.reshape(-1, t.shape[-1]).shape[0] for calls in routes.values() for t in calls)
+                print(f"\n========== REUSING {variant_name} from {existing.name} "
+                      f"({len(routes)} modules, {rows} rows) ==========")
+                return routes, {"resumed_from": str(existing)}
         except FileNotFoundError:
             pass
 
