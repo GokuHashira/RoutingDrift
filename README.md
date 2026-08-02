@@ -201,6 +201,39 @@ python -m routingdrift.quantization.verify_reproducibility --results_dir results
 
 Every run writes `run_manifest.json` (library versions, GPU, checkpoint revision, git commit, seeds, guard results) and a timestamped log under `<output_dir>/logs/`.
 
+### Quantization sweep *(GPU required)*
+
+Three precision points give two non-trivial drift values, which cannot support a correlation. The sweep walks 15 operating points, all derived from the same FP16 checkpoint so no second quantization algorithm is introduced as a confound.
+
+```bash
+python -m routingdrift.quantization.sweep \
+    --model_name allenai/OLMoE-1B-7B-0924 --revision <commit-sha> \
+    --prompts_file results/mmlu_prompts.txt \
+    --output_dir results/olmoe_sweep --top_k 8 --target_module mlp.gate \
+    --run_lm_eval --lm_eval_limit 200
+```
+
+`sweep_correlations.csv` correlates accuracy drop against **both** routing drift and a gate-distribution KL control. If the KL explains the drop as well as drift does, routing fidelity is a proxy for gate noise rather than a metric, and the paper should say so.
+
+Run `python -m routingdrift.quantization.quant_configs` to list the 15 configurations.
+
+### Causal route replay *(GPU required)*
+
+Runs the FP16 model ,  full-precision weights everywhere, while forcing the expert selections a quantized model made, and reports what fraction of the quantized degradation routing alone explains.
+
+```bash
+python -m routingdrift.quantization.route_replay \
+    --model_name allenai/OLMoE-1B-7B-0924 --revision <commit-sha> \
+    --prompts_file results/mmlu_prompts.txt \
+    --baseline_routes results/olmoe_top8/routes_fp16.json \
+    --replay_routes  results/olmoe_top8/routes_int4.json \
+    --quant_precision int4 --top_k 8 --output_dir results/olmoe_replay
+```
+
+Measured with NLL on the fixed prompt set rather than a benchmark score: replay is positional, so recorded routes align with *these* prompts token for token, and lm-eval's own documents would have nothing to align against.
+
+Check `intervention_artifact` in the output. OLMoE sets `norm_topk_prob=False`, so masking non-selected experts shifts mixing weights as well as selection; attribution is reported against a control that measures exactly that.
+
 ### Kernel Optimization *(GPU required)*
 
 ```bash
@@ -248,6 +281,17 @@ python -m routingdrift.quantization.verify_reproducibility \
 ```
 
 Note that drift is **not** hardware-independent: fp16 reduction order differs across GPU architectures, shifting gate logits enough to flip near-tie top-k picks. Keep an entire sweep on one device.
+
+**Committed results are write-protected.** `results/olmoe_top2_zaratan`, `results/kernels`, `results/kernels_a100`, `results/compiler` and `results/report_plots` hold the only copies of experiments this repository cannot regenerate, and `results/olmoe_top2_zaratan` is the reference the smoke test diffs against. Any run that would write into them fails with a suggested alternative path. `ROUTINGDRIFT_ALLOW_OVERWRITE=1` is the deliberate escape hatch.
+
+**Continuous integration** runs the four GPU-free checks on every push: lint, an AST import-graph check that covers `kernels/` and `compiler/` despite Triton and CUDA being absent, the test suite, metric reproducibility from the committed route dumps, and the full pipeline against a generated tiny MoE, plus an assertion that the guards reported passing values rather than degrading to no-ops.
+
+To bundle everything needed to diagnose a GPU run:
+
+```bash
+python tools/collect_diagnostics.py          # digest + tarball
+python tools/collect_diagnostics.py --no_bundle   # digest only
+```
 
 ---
 
