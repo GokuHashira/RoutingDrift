@@ -36,7 +36,7 @@ from routingdrift.quantization.analysis_utils import (
 from routingdrift.quantization.drift import build_layerwise_rows, summarize_research_metrics
 from routingdrift.quantization.harness_eval import SUPPORTED_EVAL_TASKS, extract_task_accuracies, run_lm_eval
 from routingdrift.quantization.io_utils import save_prompts_txt, save_routes_json, save_summary_csv, save_summary_md
-from routingdrift.quantization.model_loader import load_model
+from routingdrift.quantization.model_loader import load_model, summarize_quantized_modules
 from routingdrift.quantization.repro import (
     DEFAULT_SEED,
     collect_run_manifest,
@@ -124,6 +124,9 @@ def run_for_precision(
     variant_name = _build_variant_name(precision, compiler_mode)
     print(f"\n========== Loading variant: {variant_name} ==========")
     model, tokenizer = load_model(model_name=model_name, precision=precision, revision=revision)
+    # Say what actually got quantized. Cheap, and it makes every run self-documenting
+    # about whether the requested precision reached the layers it was supposed to.
+    print(f"[load] {summarize_quantized_modules(model)}")
     model = _apply_compiler_mode(model, compiler_mode)
 
     if inspect_modules:

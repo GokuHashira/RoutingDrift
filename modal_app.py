@@ -13,6 +13,7 @@ downloaded once rather than juggled against a fixed disk.
 Every stage is separately invokable. Run them in order and stop after stage 1.
 
     modal run modal_app.py::smoke                 # ~$0.65  <-- START HERE, then send the digest
+    modal run modal_app.py::probe                 # ~$0.60  settles the skip_modules question
     modal run modal_app.py::task1                 # ~$1.90
     modal run modal_app.py::sweep                 # ~$6.90  the correlation
     modal run modal_app.py::replay                # ~$1.00  the causal result
@@ -212,6 +213,47 @@ def task1(n_prompts: int = 100, lm_eval_limit: int = 500):
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/olmoe_top8")
+
+
+# ---------------------------------------------------------------------------
+# Probe -- settles the one assumption gating the expensive sweep. ~$0.60.
+# ---------------------------------------------------------------------------
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=60 * 60)
+def probe(n_prompts: int = 20):
+    """
+    Does bitsandbytes honour llm_int8_skip_modules on 4-bit loads?
+
+    The smoke test cannot answer this: run_experiment never passes skip_modules, so only
+    the sweep's nf4_L* configs exercise it. If the answer is no, five of the fifteen sweep
+    configs are silent duplicates of full quantization and the layer dial -- the lever that
+    sweeps drift continuously rather than in jumps -- has to be rebuilt before the sweep
+    is worth $7.
+
+    Four loads, no lm-eval, 20 prompts. Read the quant_audit line for each: nf4 should
+    touch every router-bearing layer, nf4_L4 only the first four, nf4_L8 the first eight.
+    If all three report the same span, skip_modules is being ignored.
+    """
+    _gpu_report()
+    _run(
+        "routingdrift.quantization.build_mmlu_prompts",
+        "--n", str(n_prompts), "--seed", "0",
+        "--out", f"{RESULTS}/probe_prompts.txt",
+    )
+    _run(
+        "routingdrift.quantization.sweep",
+        "--model_name", OLMOE, *_rev(),
+        "--prompts_file", f"{RESULTS}/probe_prompts.txt",
+        "--output_dir", f"{RESULTS}/probe",
+        "--top_k", "8", "--target_module", "mlp.gate",
+        "--max_length", "128", "--seed", "0",
+        "--configs", "fp16", "nf4", "nf4_L4", "nf4_L8",
+    )
+    print("\nRead the four quant_audit lines above:")
+    print("  nf4     should touch ALL router-bearing layers")
+    print("  nf4_L4  should touch layers 0-3 only")
+    print("  nf4_L8  should touch layers 0-7 only")
+    print("If the spans are identical, skip_modules is ignored on 4-bit -> tell Claude")
+    print("before running the sweep.")
 
 
 # ---------------------------------------------------------------------------
