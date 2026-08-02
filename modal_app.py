@@ -10,6 +10,14 @@ thinking time either costs money or costs the discipline to remember to shut it 
 also means a persistent volume holds the checkpoints, so the 117 GB across three models is
 downloaded once rather than juggled against a fixed disk.
 
+Use --detach for anything longer than a couple of minutes:
+
+    modal run --detach modal_app.py::task1
+
+Without it the app dies when your local client disconnects -- closing a laptop lid is
+enough, and it killed a paid task1 run mid-eval. Detached runs keep going; follow them in
+the dashboard and collect results afterwards with the diagnostics stage.
+
 Every stage is separately invokable. Run them in order and stop after stage 1.
 
     modal run modal_app.py::smoke                 # ~$0.65  <-- START HERE, then send the digest
@@ -56,7 +64,10 @@ GPU = "A100-80GB"
 _COMMON = [
     "accelerate", "bitsandbytes==0.44.1", "safetensors", "sentencepiece", "protobuf",
     "numpy<2", "pandas", "matplotlib", "seaborn", "tabulate", "scipy",
-    "lm-eval==0.4.4", "datasets", "huggingface_hub",
+    # datasets must stay <3: 3.x removed trust_remote_code, which lm-eval 0.4.4 still
+    # passes when loading hails/mmlu_no_train, and every MMLU subtask then fails with
+    # "`trust_remote_code` is not supported anymore".
+    "lm-eval==0.4.4", "datasets<3", "huggingface_hub",
 ]
 
 # Experiment output goes to the volume, not the image. But results/olmoe_top2_zaratan

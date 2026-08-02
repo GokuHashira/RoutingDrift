@@ -645,6 +645,22 @@ def _evaluate_and_correlate(args, output_dir, summary_rows, variant_to_precision
             limit=args.lm_eval_limit,
             device=args.lm_eval_device,
         )
+        # Per-variant failures are tolerated so one bad config cannot lose a whole run,
+        # but ZERO rows means the accuracy half produced nothing at all. Continuing would
+        # emit empty correlation CSVs and exit green, which reads as "no relationship
+        # found" rather than "nothing was measured".
+        if not eval_rows:
+            raise RuntimeError(
+                f"--run_lm_eval was requested over {len(eval_variants)} variant(s) but no "
+                "accuracy rows were produced. Every variant failed; scroll up for the "
+                "per-variant '[lm-eval WARNING] Skipping variant' lines. Drift results are "
+                "already saved and valid; only the quality link is missing."
+            )
+        if len(eval_rows) < len(eval_variants):
+            got = {row["variant"] for row in eval_rows}
+            print(f"[lm-eval] WARNING: only {len(got)}/{len(eval_variants)} variants "
+                  f"produced accuracy; missing {sorted(set(eval_variants) - got)}")
+
         eval_csv_path = output_dir / "lm_eval_scores.csv"
         save_rows_csv(eval_rows, eval_csv_path)
         print(f"[Saved] {eval_csv_path}")

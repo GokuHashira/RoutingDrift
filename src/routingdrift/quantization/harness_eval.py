@@ -29,10 +29,13 @@ def build_hf_model_args(
     """
     Build lm-eval HF model_args string for a precision setting.
     """
+    # No clean_up_tokenization_spaces here. lm-eval forwards unrecognised model_args keys
+    # straight into the model constructor, and OlmoeForCausalLM.__init__ rejects it:
+    #   OlmoeForCausalLM.__init__() got an unexpected keyword argument
+    # Same failure shape as the dtype/torch_dtype bug. It is a tokenizer setting anyway.
     parts = [
         f"pretrained={model_name}",
         f"device={device}",
-        "clean_up_tokenization_spaces=False",
     ]
     if trust_remote_code:
         parts.append("trust_remote_code=True")

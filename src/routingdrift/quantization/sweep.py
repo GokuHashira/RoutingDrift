@@ -260,6 +260,12 @@ def run_sweep(args: argparse.Namespace) -> int:
         save_rows_csv(correlations, output_dir / "sweep_correlations.csv")
         print(f"[Saved] {output_dir / 'sweep_correlations.csv'}")
         _print_correlations(correlations)
+    elif args.run_lm_eval:
+        raise RuntimeError(
+            "--run_lm_eval was requested but no accuracy rows were produced across "
+            f"{len(specs)} configs. The correlation -- the point of the sweep -- cannot be "
+            "computed. Drift and gate-KL are saved in sweep_drift.csv and are valid."
+        )
     else:
         print("[sweep] no accuracy rows; drift measured but the quality link was not evaluated")
 
