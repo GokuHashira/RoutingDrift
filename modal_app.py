@@ -96,9 +96,11 @@ def _git_env() -> dict:
     }
 
 
-# Evaluated locally when this file is imported by `modal run`, so it reflects the tree
-# actually being uploaded.
-GIT_ENV = _git_env()
+# This module is re-imported INSIDE the container, where .git does not exist, so a plain
+# module-level call recomputes to empty strings -- which is exactly what happened on the
+# first two runs (manifest showed git: None). modal.Secret.from_dict is resolved on the
+# client and injected into the container, so the values survive the round trip.
+GIT_SECRET = modal.Secret.from_dict(_git_env())
 
 app = modal.App("routingdrift")
 
@@ -108,11 +110,20 @@ results_vol = modal.Volume.from_name("routingdrift-results", create_if_missing=T
 
 VOLUMES = {"/cache": hf_cache, RESULTS: results_vol}
 ENV = {
-    **GIT_ENV,
     "HF_HOME": "/cache/huggingface",
     "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     "TOKENIZERS_PARALLELISM": "false",
 }
+
+
+def _reload_volumes() -> None:
+    """
+    A container sees the volume as of mount time. Without this, diagnostics run after a
+    stage reports the *previous* run's manifest -- which is what happened, and made a
+    completed run look like it was still `status: started`.
+    """
+    results_vol.reload()
+    hf_cache.reload()
 
 
 def _run(*argv: str) -> None:
@@ -158,7 +169,7 @@ def _rev():
 # ---------------------------------------------------------------------------
 # Stage 1 -- smoke test. RUN THIS FIRST AND STOP.
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=60 * 60)
 def smoke():
     """
     Reproduce the committed May-2026 Zaratan A100 run and diff the raw routes.
@@ -190,7 +201,7 @@ def smoke():
 # ---------------------------------------------------------------------------
 # Stage 2 -- headline table
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=3 * 60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=3 * 60 * 60)
 def task1(n_prompts: int = 100, lm_eval_limit: int = 500):
     """OLMoE top-8 drift on an MMLU prompt set, with accuracy."""
     _gpu_report()
@@ -220,7 +231,7 @@ def task1(n_prompts: int = 100, lm_eval_limit: int = 500):
 # ---------------------------------------------------------------------------
 # Probe -- settles the one assumption gating the expensive sweep. ~$0.60.
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=60 * 60)
 def probe(n_prompts: int = 20):
     """
     Does bitsandbytes honour llm_int8_skip_modules on 4-bit loads?
@@ -261,7 +272,7 @@ def probe(n_prompts: int = 20):
 # ---------------------------------------------------------------------------
 # Stage 3 -- the correlation. This is the paper.
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=8 * 60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=8 * 60 * 60)
 def sweep(lm_eval_limit: int = 200):
     """
     15 quantization configs -> drift and gate-KL against accuracy drop.
@@ -292,7 +303,7 @@ def sweep(lm_eval_limit: int = 200):
 # ---------------------------------------------------------------------------
 # Stage 4 -- causal attribution
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=2 * 60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=2 * 60 * 60)
 def replay(quant_precision: str = "int4"):
     """FP16 weights driven by the quantized model's expert selections."""
     _gpu_report()
@@ -316,7 +327,7 @@ def replay(quant_precision: str = "int4"):
 # ---------------------------------------------------------------------------
 # Stage 5 -- second architecture: shared-expert axis
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, timeout=3 * 60 * 60)
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=3 * 60 * 60)
 def deepseek_drift():
     """
     DeepSeek-V2-Lite: 64 routed + 2 shared, top-6.
@@ -343,7 +354,7 @@ def deepseek_drift():
 # ---------------------------------------------------------------------------
 # Stage 6 -- third architecture: granularity axis, 2026 model
 # ---------------------------------------------------------------------------
-@app.function(image=latest_image, gpu=GPU, volumes=VOLUMES, timeout=4 * 60 * 60)
+@app.function(image=latest_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=4 * 60 * 60)
 def qwen_drift():
     """
     Qwen3.6-35B-A3B: 256 routed + 1 shared, top-8, April 2026.
@@ -369,9 +380,10 @@ def qwen_drift():
 # ---------------------------------------------------------------------------
 # Diagnostics -- CPU only, so this costs almost nothing
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, volumes=VOLUMES, timeout=15 * 60)
+@app.function(image=pinned_image, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=15 * 60)
 def diagnostics():
     """Print the digest that answers the open questions. No GPU, so effectively free."""
+    _reload_volumes()
     import os
     import subprocess
     import sys
