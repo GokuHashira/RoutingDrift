@@ -245,6 +245,11 @@ def task1(n_prompts: int = 100, lm_eval_limit: int = 500):
         "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
         "--output_dir", f"{RESULTS}/olmoe_top8",
         "--top_k", "8", "--max_length", "128", "--seed", "0",
+        # Modal restarts a preempted container from the top with the same input; without
+        # this a preemption during the third precision re-pays for the first two. Route
+        # dumps whose call count does not match the current prompt set are ignored, so a
+        # stale dump cannot be mixed in.
+        "--resume",
         "--run_lm_eval",
         # GSM8K removed. It is the only generative task, and its generate_until phase dies
         # with "cuDNN Frontend error: No execution plans support the graph" on this stack.
