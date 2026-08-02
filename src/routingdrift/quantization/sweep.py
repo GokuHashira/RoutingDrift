@@ -121,6 +121,25 @@ def run_sweep(args: argparse.Namespace) -> int:
     manifest_path = output_dir / "run_manifest.json"
     save_run_manifest(collect_run_manifest(args.model_name, seed_settings, manifest_extra), manifest_path)
 
+    # A preempted container is restarted from the top with the same input, so a long
+    # sweep must be able to pick up where it stopped or it may never converge.
+    already_done: set = set()
+    if args.resume:
+        prior = output_dir / "sweep_drift.csv"
+        if prior.is_file():
+            import csv as _csv
+
+            with prior.open(encoding="utf-8") as f:
+                prior_rows = list(_csv.DictReader(f))
+            drift_rows_prior = [r for r in prior_rows if r.get("config")]
+            already_done = {r["config"] for r in drift_rows_prior}
+            print(f"[sweep] resuming: {len(already_done)} config(s) already scored "
+                  f"({', '.join(sorted(already_done))})")
+            # Carry the prior rows forward, otherwise the final CSV and the correlation
+            # would contain only the configs run after the restart.
+            resumed_rows = [r for r in drift_rows_prior if r["config"] != "fp16"]
+
+    resumed_rows: List[dict] = []
     baseline_routes: Optional[Dict[str, List[torch.Tensor]]] = None
     baseline_probs: Optional[Dict[str, List[torch.Tensor]]] = None
     router_layer_prefixes: List[str] = []
@@ -146,6 +165,15 @@ def run_sweep(args: argparse.Namespace) -> int:
                     f"{len(router_layer_prefixes)} router-bearing layers, so this is "
                     f"identical to full quantization."
                 )
+
+        # Resume: skip configs already scored in a previous attempt. Keyed off the
+        # incrementally-written CSV rather than the route dumps, because gate_kl needs the
+        # per-token gate distributions and those are not persisted -- a config whose routes
+        # exist could not have its KL recomputed. fp16 is never skipped: its routes and
+        # probs are the baseline every later config is measured against.
+        if spec.name in already_done and spec.name != "fp16":
+            print(f"[sweep] SKIP {spec.name}: already scored in a previous attempt")
+            continue
 
         started = time.time()
         if torch.cuda.is_available():
@@ -217,6 +245,9 @@ def run_sweep(args: argparse.Namespace) -> int:
             "seconds": round(elapsed, 1),
         }
         drift_rows.append(row)
+        # Written after every config, not once at the end: a preemption partway through
+        # would otherwise discard every config already paid for.
+        save_rows_csv(drift_rows, output_dir / "sweep_drift.csv")
         print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  "
               f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  {elapsed:.0f}s")
 
@@ -250,8 +281,10 @@ def run_sweep(args: argparse.Namespace) -> int:
                 )
             _free()
 
+    drift_rows = drift_rows + [r for r in resumed_rows
+                               if r["config"] not in {d["config"] for d in drift_rows}]
     save_rows_csv(drift_rows, output_dir / "sweep_drift.csv")
-    print(f"\n[Saved] {output_dir / 'sweep_drift.csv'}")
+    print(f"\n[Saved] {output_dir / 'sweep_drift.csv'}  ({len(drift_rows)} configs)")
 
     if eval_rows:
         save_rows_csv(eval_rows, output_dir / "sweep_lm_eval.csv")
@@ -350,6 +383,11 @@ def main() -> int:
                     help=f"Subset of: {', '.join(quant_configs.BY_NAME)}. fp16 must come first.")
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--no_deterministic", action="store_true")
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reuse route dumps already in --output_dir. For restarts after preemption.",
+    )
     ap.add_argument("--run_lm_eval", action="store_true")
     ap.add_argument("--lm_eval_tasks", nargs="+", default=["mmlu", "gsm8k", "hellaswag"])
     ap.add_argument("--lm_eval_num_fewshot", type=int, default=5)

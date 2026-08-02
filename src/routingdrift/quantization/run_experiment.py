@@ -109,6 +109,7 @@ def run_for_precision(
     inspect_modules: bool = False,
     revision: Optional[str] = None,
     repeat_for_determinism: bool = False,
+    resume: bool = False,
 ):
     """
     Load one variant, collect its routes, and save them.
@@ -122,6 +123,28 @@ def run_for_precision(
     requested, the determinism result.
     """
     variant_name = _build_variant_name(precision, compiler_mode)
+    routes_path = output_dir / f"routes_{_sanitize_name_for_filename(variant_name)}.json"
+
+    # Resume. Modal preempts containers and restarts the function from the top with the
+    # same input, so without this a preemption during the third precision re-pays for the
+    # first two -- and on a long sweep it can fail to converge at all.
+    #
+    # Only safe when re-running an identical command, which is exactly the preemption
+    # case. Off by default so an ordinary re-run never silently mixes old and new routes.
+    if resume:
+        try:
+            from routingdrift.quantization.io_utils import load_routes_raw, resolve_routes_path
+
+            existing = resolve_routes_path(routes_path)
+            raw = load_routes_raw(existing)
+            routes = {m: [torch.tensor(c) for c in calls] for m, calls in raw.items()}
+            rows = sum(t.reshape(-1, t.shape[-1]).shape[0] for calls in routes.values() for t in calls)
+            print(f"\n========== REUSING {variant_name} from {existing.name} "
+                  f"({len(routes)} modules, {rows} rows) ==========")
+            return routes, {"resumed_from": str(existing)}
+        except FileNotFoundError:
+            pass
+
     print(f"\n========== Loading variant: {variant_name} ==========")
     model, tokenizer = load_model(model_name=model_name, precision=precision, revision=revision)
     # Say what actually got quantized. Cheap, and it makes every run self-documenting
@@ -163,7 +186,7 @@ def run_for_precision(
         )
         print(f"[determinism] {status}")
 
-    written = save_routes_json(routes, output_dir / f"routes_{_sanitize_name_for_filename(variant_name)}.json")
+    written = save_routes_json(routes, routes_path)
     print(f"[Saved] {written}")
 
     del model
@@ -380,6 +403,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Reuse route dumps already present in --output_dir instead of recomputing "
+            "them. Intended for restarts after a preempted container; only correct when "
+            "re-running an identical command."
+        ),
+    )
+    parser.add_argument(
         "--skip_determinism_check",
         "--skip-determinism-check",
         action="store_true",
@@ -474,6 +506,7 @@ def _collect_variants(args, prompts, output_dir):
             # difference cannot be told apart from run-to-run noise. One extra prefill
             # pass per precision, so seconds.
             repeat_for_determinism=not args.skip_determinism_check,
+            resume=args.resume,
         )
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = precision
@@ -492,6 +525,7 @@ def _collect_variants(args, prompts, output_dir):
             output_dir=output_dir,
             inspect_modules=False,
             revision=args.revision,
+            resume=args.resume,
         )
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = args.compiler_precision
