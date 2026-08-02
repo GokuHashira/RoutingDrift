@@ -1,7 +1,7 @@
 """
 test_router_matching.py
 
-Guards `RoutingLogger._is_target_router` against the failure mode in CORRECTNESS_AUDIT.md:
+Guards `RoutingLogger._is_target_router` against a silent-corruption failure mode:
 a bare "gate" keyword also matches `experts.N.gate_proj` (per-expert FFN projection) and
 Qwen2-MoE's `mlp.shared_expert_gate`. Hooking either one produces plausible-looking but
 meaningless "expert indices" -- topk over FFN channels.

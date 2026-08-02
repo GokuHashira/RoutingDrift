@@ -56,7 +56,7 @@ In isolation, the kernels are genuinely fast:
 | Softmax  | OLMoE (64 experts)      | 0.017 ms   | 0.009 ms   | **2.0x** | 61 GB/s    |
 | Softmax  | Mixtral (8 experts)     | 0.017 ms   | 0.008 ms   | **2.2x** | 9 GB/s     |
 
-The catch is Amdahl's Law. RMSNorm is a low single-digit percentage of OLMoE's forward pass, and Softmax is basically nothing. (The exact fraction our profiler reports is not trustworthy: it attributes RMSNorm time by keyword-matching generic elementwise kernels, which both over-counts a residual add and misses the variance reduction. The conclusion survives because the true fraction is genuinely tiny; the specific number does not. See `CORRECTNESS_AUDIT.md`.) Even a 7.3x isolated speedup gives a predicted E2E ceiling around **1.015x**. The measured E2E confirms it: OLMoE with Triton kernels runs at **0.985x** baseline at seq=512 batch=4, because the kernel's launch overhead doesn't amortize at small batch sizes.
+The catch is Amdahl's Law. RMSNorm is a low single-digit percentage of OLMoE's forward pass, and Softmax is basically nothing. (The exact fraction our profiler reports is not trustworthy: it attributes RMSNorm time by keyword-matching generic elementwise kernels, which both over-counts a residual add and misses the variance reduction. The conclusion survives because the true fraction is genuinely tiny; the specific number does not.) Even a 7.3x isolated speedup gives a predicted E2E ceiling around **1.015x**. The measured E2E confirms it: OLMoE with Triton kernels runs at **0.985x** baseline at seq=512 batch=4, because the kernel's launch overhead doesn't amortize at small batch sizes.
 
 **Bottom line:** the kernels are correct and memory-efficient. The E2E ceiling is set by Amdahl, not kernel quality.
 
@@ -165,11 +165,9 @@ RoutingDrift/
 └── tests/                           # context.py + test modules
 ```
 
-Also present locally but excluded from version control (see `.gitignore`): `docs/`
-(sub-study notes, `CORRECTNESS_AUDIT.md`, `RERUN_PLAN.md`), `tools/` (`check_imports.py`,
-`make_tiny_moe.py`), `thunder/` (Thunder Compute launchers), `temp/`, and `hpc_runs/`
-(Zaratan SLURM scripts). The `make check-imports` and `make cpu-smoke` targets depend on
-`tools/`, so they only work in a working copy that has it.
+Run logs (`thunder/logs/`, `<output_dir>/logs/`) are written during execution and kept
+alongside the results they explain. `temp/` and `hpc_runs/` (superseded Zaratan SLURM
+scripts) are excluded from version control.
 
 ---
 
@@ -311,14 +309,17 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Known Limitations
 
-`CORRECTNESS_AUDIT.md` is a code-level audit of all three sub-studies against their committed outputs. Read it before citing any number here. The short version:
+A code-level audit of all three sub-studies against their committed outputs found the
+following. Read these before citing any number above.
 
-- Drift was measured at **top-2**, not OLMoE's native top-8, and on 5 generic prompts rather than an MMLU corpus.
-- The **drift → quality link has not been measured**. Three precision points cannot support a correlation regardless.
-- Every quantitative compiler result comes from **randomly-initialized 2-layer stubs**, not the real models.
+- Drift was measured at **top-2**, not OLMoE's native top-8, and on 5 generic prompts rather than an MMLU corpus. The thin-margin 7th/8th boundary, where flips are most likely, was never logged.
+- The **drift-to-quality link has not been measured**. INT8/INT4 accuracy was never run, and three precision points give two non-trivial drift values, which cannot support a correlation regardless.
+- Every quantitative compiler result comes from **randomly-initialized 2-layer stubs**, not the real models. The reported routing-overhead share is a scale artifact of that setup and should be retired rather than reproduced.
+- The Mixtral kernel regression is a host-device memcpy problem caused by patching modules inside a managed quantized runtime, **not** an INT4 layout incompatibility.
 - Single run, no seeds swept, no error bars.
 
-`RERUN_PLAN.md` lists what each fix costs in GPU hours.
+The `sweep`, `route_replay` and multi-model paths documented above exist to close the
+first two items; they have not yet been run on hardware.
 
 ---
 
