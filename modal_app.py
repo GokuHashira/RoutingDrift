@@ -317,6 +317,9 @@ def sweep(lm_eval_limit: int = 200):
         "--output_dir", f"{RESULTS}/olmoe_sweep",
         "--top_k", "8", "--target_module", "mlp.gate",
         "--max_length", "128", "--seed", "0",
+        # 15 configs is long enough that a preemption without --resume could restart the
+        # whole sweep repeatedly and never finish.
+        "--resume",
         "--run_lm_eval",
         "--lm_eval_tasks", "mmlu", "hellaswag",
         "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
