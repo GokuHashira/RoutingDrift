@@ -166,6 +166,17 @@ def _git_info(repo_root: Optional[Path] = None) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001 - git absent or not a repo
             return None
 
+    # A remote runner (Modal) ships the working tree without .git, so it passes the git
+    # state in via the environment instead. Prefer that over a failed local lookup.
+    injected = os.environ.get("ROUTINGDRIFT_GIT_COMMIT")
+    if injected:
+        return {
+            "commit": injected,
+            "branch": os.environ.get("ROUTINGDRIFT_GIT_BRANCH") or None,
+            "dirty": os.environ.get("ROUTINGDRIFT_GIT_DIRTY") == "1",
+            "source": os.environ.get("ROUTINGDRIFT_SOURCE", "injected"),
+        }
+
     status = _git("status", "--porcelain")
     return {
         "commit": _git("rev-parse", "HEAD"),

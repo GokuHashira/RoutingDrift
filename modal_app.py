@@ -65,6 +65,40 @@ def _image(transformers_pin: str) -> modal.Image:
 pinned_image = _image("transformers==4.46.0")
 latest_image = _image("transformers>=4.57")
 
+def _git_env() -> dict:
+    """
+    Capture the local git state at launch and pass it into the container.
+
+    `.git` is not shipped (10 MB, and useless in the container), so `git rev-parse` inside
+    the container fails and run_manifest.json would record commit=null. That defeats the
+    manifest's purpose: tracing a reported number back to the code that produced it.
+
+    The dirty flag matters more here than in a normal run. `add_local_dir` uploads the
+    working TREE, not a commit, so a run can execute code that corresponds to no commit at
+    all. A manifest saying `dirty: true` is the only signal that happened.
+    """
+    import subprocess
+
+    def _git(*cmd: str) -> str:
+        try:
+            out = subprocess.run(["git", *cmd], capture_output=True, text=True,
+                                 timeout=10, check=False)
+            return out.stdout.strip() if out.returncode == 0 else ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    return {
+        "ROUTINGDRIFT_GIT_COMMIT": _git("rev-parse", "HEAD"),
+        "ROUTINGDRIFT_GIT_BRANCH": _git("rev-parse", "--abbrev-ref", "HEAD"),
+        "ROUTINGDRIFT_GIT_DIRTY": "1" if _git("status", "--porcelain") else "0",
+        "ROUTINGDRIFT_SOURCE": "modal add_local_dir (working tree, not a clone)",
+    }
+
+
+# Evaluated locally when this file is imported by `modal run`, so it reflects the tree
+# actually being uploaded.
+GIT_ENV = _git_env()
+
 app = modal.App("routingdrift")
 
 # Checkpoints persist here, so a failed stage does not re-pay a 72 GB download.
@@ -73,6 +107,7 @@ results_vol = modal.Volume.from_name("routingdrift-results", create_if_missing=T
 
 VOLUMES = {"/cache": hf_cache, RESULTS: results_vol}
 ENV = {
+    **GIT_ENV,
     "HF_HOME": "/cache/huggingface",
     "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     "TOKENIZERS_PARALLELISM": "false",
