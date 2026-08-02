@@ -69,13 +69,21 @@ def main() -> None:
     )
     args = ap.parse_args()
 
+    # Remove any previous prompt file FIRST. Otherwise a failure here leaves the last
+    # run's file in place, and a later stage reads it as though it were current -- which
+    # is how the 5 generic fallback prompts would silently become the corpus for a sweep.
+    out_path = Path(args.out)
+    if out_path.exists():
+        print(f"[build_mmlu_prompts] removing stale {out_path}")
+        out_path.unlink()
+
     prompts = build(args.n, args.seed, allow_fallback=args.allow_fallback)
     if len(prompts) < args.n and not args.allow_fallback:
         raise RuntimeError(
             f"asked for {args.n} prompts but only {len(prompts)} were produced; "
             "refusing to write a short prompt set that later stages will treat as complete"
         )
-    Path(args.out).write_text("\n".join(prompts) + "\n", encoding="utf-8")
+    out_path.write_text("\n".join(prompts) + "\n", encoding="utf-8")
     print(f"[build_mmlu_prompts] Wrote {len(prompts)} prompts to {args.out}")
 
 
