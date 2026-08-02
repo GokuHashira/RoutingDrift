@@ -21,6 +21,21 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
+ORDER AND PARALLELISM
+    smoke, probe          independent of everything
+    task1                 MUST run before sweep/replay/deepseek/qwen -- it writes
+                          mmlu_prompts.txt, which they all read
+    sweep, replay         after task1; may run concurrently with each other
+    deepseek, qwen        after task1; keep SERIAL with each other, since both download
+                          into the shared HF cache volume and concurrent commits can race
+    diagnostics           last; reloads the volumes before reading
+
+Parallelism is cost-neutral on Modal -- billing is per function-second, so two GPUs for
+30 minutes costs what one costs for 60. The reason to stay sequential is not money, it is
+that a container sees a volume as of MOUNT time: a stage launched before its predecessor
+commits will simply not see the files it needs, and will fail in a way that looks like a
+bug rather than a race.
+
 Pull results down to the laptop:
 
     modal volume get routingdrift-results / ./results_modal
