@@ -257,10 +257,33 @@ def _sanitize_for_json(obj: Any) -> Any:
 
 
 def _extract_primary_metric(task_metrics: dict[str, Any]) -> tuple[str, float] | None:
+    """
+    Pull the headline metric out of one lm-eval task result.
+
+    lm-eval 0.4.x keys metrics as "{metric},{filter}" -- "acc_norm,none",
+    "exact_match,strict-match" -- not as the bare metric name. Matching only the bare name
+    silently returns nothing, and the caller then discards a completed evaluation as
+    "no parseable metric". That cost several full eval runs whose compute had already
+    finished. kernels/eval_accuracy.py had this right; this module did not.
+    """
     for metric_name in PRIMARY_METRIC_CANDIDATES:
         value = task_metrics.get(metric_name)
-        if isinstance(value, (int, float)):
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
             return metric_name, float(value)
+
+        # "acc_norm,none" and friends. Prefer an unfiltered result when several exist.
+        matches = [
+            (key, val)
+            for key, val in task_metrics.items()
+            if isinstance(key, str)
+            and key.split(",", 1)[0] == metric_name
+            and isinstance(val, (int, float))
+            and not isinstance(val, bool)
+        ]
+        if matches:
+            matches.sort(key=lambda kv: (not kv[0].endswith(",none"), kv[0]))
+            key, val = matches[0]
+            return key, float(val)
     return None
 
 
@@ -303,5 +326,10 @@ def extract_task_accuracies(
                 "accuracy": sum(subtask_scores) / len(subtask_scores),
                 "metric": subtask_metric_name or "avg_subtasks",
             }
+        elif task in task_results and isinstance(task_results[task], dict):
+            # Report the keys that were present. A silent miss here discards an evaluation
+            # that already ran, and guessing at the schema from the outside is expensive.
+            print(f"[lm-eval] no known metric for task {task!r}; available keys: "
+                  f"{sorted(k for k in task_results[task] if isinstance(k, str))}")
 
     return parsed
