@@ -282,7 +282,7 @@ Note that drift is **not** hardware-independent: fp16 reduction order differs ac
 
 **Committed results are write-protected.** `results/olmoe_top2_zaratan`, `results/kernels`, `results/kernels_a100`, `results/compiler` and `results/report_plots` hold the only copies of experiments this repository cannot regenerate, and `results/olmoe_top2_zaratan` is the reference the smoke test diffs against. Any run that would write into them fails with a suggested alternative path. `ROUTINGDRIFT_ALLOW_OVERWRITE=1` is the deliberate escape hatch.
 
-**Continuous integration** runs the four GPU-free checks on every push: lint, an AST import-graph check that covers `kernels/` and `compiler/` despite Triton and CUDA being absent, the test suite, metric reproducibility from the committed route dumps, and the full pipeline against a generated tiny MoE, plus an assertion that the guards reported passing values rather than degrading to no-ops.
+**Before any expensive run**, `make lint test check-imports cpu-smoke` exercises everything that can be checked without a GPU: lint, an AST import-graph check that covers `kernels/` and `compiler/` despite Triton and CUDA being absent, the test suite, metric reproducibility from the committed route dumps, and the full pipeline against a generated tiny MoE.
 
 To bundle everything needed to diagnose a GPU run:
 

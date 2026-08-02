@@ -10,3 +10,4 @@ report.md
 /.pytest_cache/
 /.ruff_cache/
 /docs/
+.DS_Store
