@@ -43,11 +43,14 @@ _COMMON = [
     "lm-eval==0.4.4", "datasets", "huggingface_hub",
 ]
 
+# Experiment output goes to the volume, not the image. But results/olmoe_top2_zaratan
+# (460 KB) MUST ship: it is the reference the smoke test diffs against, and without it
+# the one check that validates this GPU against the committed A100 run cannot execute.
+# The bulky regenerable artifacts stay out -- results/compiler alone is 33 MB.
 _IGNORE = [
     ".git", "hpc_runs", "HPC_Outputs", "temp", "docs", "*.zip",
-    # Results live in the volume, not the image. Shipping them would also risk the
-    # container writing over the committed copies.
-    "results",
+    "results/kernels", "results/kernels_a100", "results/compiler",
+    "results/report_plots", "results/*_rerun",
 ]
 
 
@@ -85,7 +88,10 @@ def _run(*argv: str) -> None:
     env = {**os.environ, **ENV, "PYTHONPATH": f"{REPO}/src"}
     print(f"\n$ {' '.join(argv)}\n", flush=True)
     result = subprocess.run([sys.executable, "-m", *argv], cwd=REPO, env=env)
+    # Commit both: results so a failed later step does not lose completed work, and the
+    # HF cache so a 14/31/72 GB download is paid for once rather than once per run.
     results_vol.commit()
+    hf_cache.commit()
     if result.returncode != 0:
         raise RuntimeError(f"stage failed (exit {result.returncode}): {' '.join(argv)}")
 
