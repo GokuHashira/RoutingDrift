@@ -55,10 +55,9 @@ METRICS = ("routing_similarity_rs", "jaccard_drift", "overlap_at_k", "selection_
 def load_routes(results_dir: Path, variant: str):
     import torch
 
-    path = results_dir / f"routes_{variant}.json"
-    if not path.is_file():
-        raise FileNotFoundError(f"missing route dump: {path}")
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    from routingdrift.quantization.io_utils import load_routes_raw
+
+    raw = load_routes_raw(results_dir / f"routes_{variant}.json")
     return {module: [torch.tensor(call) for call in calls] for module, calls in raw.items()}
 
 

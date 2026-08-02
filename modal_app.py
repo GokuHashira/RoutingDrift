@@ -64,10 +64,11 @@ GPU = "A100-80GB"
 _COMMON = [
     "accelerate", "bitsandbytes==0.44.1", "safetensors", "sentencepiece", "protobuf",
     "numpy<2", "pandas", "matplotlib", "seaborn", "tabulate", "scipy",
-    # datasets must stay <3: 3.x removed trust_remote_code, which lm-eval 0.4.4 still
-    # passes when loading hails/mmlu_no_train, and every MMLU subtask then fails with
-    # "`trust_remote_code` is not supported anymore".
-    "lm-eval==0.4.4", "datasets<3", "huggingface_hub",
+    # datasets stays unpinned. An earlier attempt to pin <3 (to restore
+    # trust_remote_code for lm-eval) broke build_mmlu_prompts with "must be called with a
+    # dataclass type or instance" and did not fix lm-eval either. The kwarg is stripped in
+    # harness_eval instead, which is surgical and leaves the rest of the stack alone.
+    "lm-eval==0.4.4", "datasets", "huggingface_hub",
 ]
 
 # Experiment output goes to the volume, not the image. But results/olmoe_top2_zaratan

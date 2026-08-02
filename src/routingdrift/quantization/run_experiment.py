@@ -163,9 +163,8 @@ def run_for_precision(
         )
         print(f"[determinism] {status}")
 
-    output_path = output_dir / f"routes_{_sanitize_name_for_filename(variant_name)}.json"
-    save_routes_json(routes, output_path)
-    print(f"[Saved] {output_path}")
+    written = save_routes_json(routes, output_dir / f"routes_{_sanitize_name_for_filename(variant_name)}.json")
+    print(f"[Saved] {written}")
 
     del model
     del tokenizer

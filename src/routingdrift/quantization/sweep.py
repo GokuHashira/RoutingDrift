@@ -180,7 +180,7 @@ def run_sweep(args: argparse.Namespace) -> int:
             max_length=args.max_length,
             verbose=(index == 1),
         )
-        save_routes_json(routes, output_dir / f"routes_{spec.name}.json")
+        save_routes_json(routes, output_dir / f"routes_{spec.name}.json")  # -> .json.gz
 
         elapsed = time.time() - started
         vram = peak_vram_gb()

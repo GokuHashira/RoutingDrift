@@ -26,8 +26,13 @@ from typing import List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Files small enough to always include.
-INCLUDE_GLOBS = ("**/run_manifest.json", "**/*.csv", "**/logs/*.log", "**/replay_result.json")
-EXCLUDE_SUBSTRINGS = ("routes_",)
+# Route dumps are gzipped now (~17x smaller), so the bundle can carry the complete record
+# rather than a summary of it. Model weights are the only thing deliberately left out.
+INCLUDE_GLOBS = (
+    "**/run_manifest.json", "**/*.csv", "**/logs/*.log", "**/replay_result.json",
+    "**/routes_*.json.gz", "**/summary.md", "**/prompts_used.txt", "**/lm_eval/*.json",
+)
+EXCLUDE_SUBSTRINGS = ()
 
 
 def _read_json(path: Path) -> Optional[dict]:
@@ -166,7 +171,7 @@ def bundle(results_dir: Path, out_path: Path) -> None:
     with tarfile.open(out_path, "w:gz") as tar:
         for pattern in INCLUDE_GLOBS:
             for path in results_dir.glob(pattern):
-                if any(bad in path.name for bad in EXCLUDE_SUBSTRINGS):
+                if EXCLUDE_SUBSTRINGS and any(bad in path.name for bad in EXCLUDE_SUBSTRINGS):
                     continue
                 if not path.is_file():
                     continue
@@ -177,7 +182,7 @@ def bundle(results_dir: Path, out_path: Path) -> None:
             added += 1
     size_mb = out_path.stat().st_size / 1024**2
     print(f"bundled {added} files -> {out_path} ({size_mb:.1f} MB)")
-    print("Raw routes_*.json excluded; their shapes are in the digest above.")
+    print("Includes gzipped route dumps: every reported metric can be recomputed from this.")
 
 
 def main() -> int:

@@ -22,7 +22,7 @@ _FALLBACK = [
 ]
 
 
-def build(n: int, seed: int) -> list[str]:
+def build(n: int, seed: int, allow_fallback: bool = False) -> list[str]:
     try:
         from datasets import load_dataset
 
@@ -40,8 +40,19 @@ def build(n: int, seed: int) -> list[str]:
             # single line: question + options (routing drift only needs the tokens, not answers)
             prompts.append(f"{row['question'].strip()} {opts}".replace("\n", " ").strip())
         return prompts
-    except Exception as exc:  # noqa: BLE001 - intentional broad fallback
-        print(f"[build_mmlu_prompts] datasets unavailable ({exc}); using fallback set.")
+    except Exception as exc:  # noqa: BLE001 - reported, never silently absorbed
+        if not allow_fallback:
+            raise RuntimeError(
+                f"could not load MMLU ({type(exc).__name__}: {exc}).\n"
+                "Refusing to substitute the built-in generic prompts. Doing so silently "
+                "would produce a drift measurement over 5 generic sentences while every "
+                "downstream file labels it a 100-question MMLU corpus -- which is exactly "
+                "the mislabelling the correctness audit found in the original results.\n"
+                "Pass --allow_fallback if a smoke test on generic prompts is genuinely "
+                "what you want."
+            ) from exc
+        print(f"[build_mmlu_prompts] WARNING: MMLU unavailable ({exc}); "
+              f"using {len(_FALLBACK)} GENERIC fallback prompts, NOT MMLU.")
         return _FALLBACK
 
 
@@ -50,9 +61,20 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=100, help="Number of MMLU questions to sample.")
     ap.add_argument("--seed", type=int, default=0, help="Sampling seed (for reproducibility).")
     ap.add_argument("--out", type=str, default="mmlu_prompts.txt", help="Output prompts file.")
+    ap.add_argument(
+        "--allow_fallback",
+        action="store_true",
+        help="Permit the generic built-in prompts if MMLU cannot be loaded. Off by "
+             "default: a silent substitution mislabels the resulting measurement.",
+    )
     args = ap.parse_args()
 
-    prompts = build(args.n, args.seed)
+    prompts = build(args.n, args.seed, allow_fallback=args.allow_fallback)
+    if len(prompts) < args.n and not args.allow_fallback:
+        raise RuntimeError(
+            f"asked for {args.n} prompts but only {len(prompts)} were produced; "
+            "refusing to write a short prompt set that later stages will treat as complete"
+        )
     Path(args.out).write_text("\n".join(prompts) + "\n", encoding="utf-8")
     print(f"[build_mmlu_prompts] Wrote {len(prompts)} prompts to {args.out}")
 

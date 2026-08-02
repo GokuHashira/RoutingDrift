@@ -42,8 +42,10 @@ RoutesByModule = Dict[str, List[torch.Tensor]]
 
 
 def load_routes_json(path: str | Path) -> RoutesByModule:
-    """Load a routes_*.json dump produced by run_experiment.py."""
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    """Load a route dump produced by run_experiment.py. Accepts .json or .json.gz."""
+    from routingdrift.quantization.io_utils import load_routes_raw
+
+    raw = load_routes_raw(path)
     return {module: [torch.tensor(call) for call in calls] for module, calls in raw.items()}
 
 

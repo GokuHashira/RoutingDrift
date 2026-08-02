@@ -62,6 +62,38 @@ def build_hf_model_args(
     return ",".join(parts)
 
 
+def _patch_datasets_trust_remote_code() -> None:
+    """
+    lm-eval 0.4.4 passes `trust_remote_code` to datasets.load_dataset; datasets 3.x removed
+    the argument, so every MMLU subtask dies with "`trust_remote_code` is not supported
+    anymore". Strip it here rather than downgrading datasets -- datasets<3 turned out to
+    break other things ("must be called with a dataclass type or instance") without fixing
+    this.
+
+    Must run BEFORE lm_eval is imported: lm_eval does `from datasets import load_dataset`
+    at import time, and a reference captured then would bypass the patch.
+    """
+    import inspect
+
+    import datasets
+
+    try:
+        if "trust_remote_code" in inspect.signature(datasets.load_dataset).parameters:
+            return  # still supported; nothing to do
+    except (TypeError, ValueError):
+        return
+
+    original = datasets.load_dataset
+
+    def patched(*args, **kwargs):
+        kwargs.pop("trust_remote_code", None)
+        return original(*args, **kwargs)
+
+    datasets.load_dataset = patched
+    print("[lm-eval] stripped trust_remote_code from datasets.load_dataset "
+          "(removed in datasets 3.x, still passed by lm-eval 0.4.4)")
+
+
 def _patch_lm_eval_git_hash(lm_eval_module) -> None:
     """
     Avoid noisy git stderr in environments where the run directory isn't a git repo.
@@ -97,6 +129,9 @@ def run_lm_eval(
     weights: 15 distinct drift values collapsing onto 2 distinct accuracy values, and a
     correlation computed over that would be an artifact.
     """
+    # Order matters: lm_eval binds load_dataset at import time.
+    _patch_datasets_trust_remote_code()
+
     try:
         import lm_eval
     except ImportError as exc:
