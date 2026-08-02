@@ -177,9 +177,6 @@ def bundle(results_dir: Path, out_path: Path) -> None:
                     continue
                 tar.add(path, arcname=str(path.relative_to(REPO_ROOT)))
                 added += 1
-        for extra in (REPO_ROOT / "thunder" / "logs").glob("*.log"):
-            tar.add(extra, arcname=str(extra.relative_to(REPO_ROOT)))
-            added += 1
     size_mb = out_path.stat().st_size / 1024**2
     print(f"bundled {added} files -> {out_path} ({size_mb:.1f} MB)")
     print("Includes gzipped route dumps: every reported metric can be recomputed from this.")

@@ -165,8 +165,12 @@ RoutingDrift/
 └── tests/                           # context.py + test modules
 ```
 
-Run logs (`thunder/logs/`, `<output_dir>/logs/`) are written during execution and kept
-alongside the results they explain. `temp/` and `hpc_runs/` (superseded Zaratan SLURM
+Run logs (`<output_dir>/logs/`) are written during execution and kept alongside the
+results they explain.
+
+The GPU runs behind the results in this repo were executed on Modal via `modal_app.py`,
+which wraps the same commands as separately invokable stages. The commands above are the
+portable form and work on any machine with a suitable GPU. `temp/` and `hpc_runs/` (superseded Zaratan SLURM
 scripts) are excluded from version control.
 
 ---

@@ -2,8 +2,6 @@
 report.md
 /HPC_Outputs/
 /hpc_runs/
-/thunder/**
-!/thunder/*.sh
 /temp/
 /tools/**
 !/tools/*.py
