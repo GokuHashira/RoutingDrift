@@ -20,7 +20,10 @@ The estimator resampled here is the same one the pipeline reports -- the mean ov
 token rows, which weights a prompt by its length -- so the interval brackets the published
 number rather than a differently-defined one.
 
-    python -m routingdrift.quantization.bootstrap --results_dir results/olmoe_top8
+    PYTHONPATH=src python3 -m routingdrift.quantization.bootstrap \\
+        --results_dir results_modal/olmoe_top8
+
+Needs no third-party packages: stdlib only, so it runs wherever the route dumps do.
 """
 
 from __future__ import annotations
@@ -121,9 +124,43 @@ def bootstrap_ci(
     }
 
 
+def _load_routes(path: Path) -> dict:
+    """
+    Read a route dump, accepting .json or .json.gz.
+
+    Deliberately does not import io_utils, which pulls in torch. This is arithmetic over
+    JSON: it should run under any stdlib Python, on a laptop, in CI, without a 2.5 GB
+    dependency for a bootstrap.
+    """
+    import gzip
+    import json
+
+    path = Path(path)
+    candidates = [path]
+    if path.suffix == ".json":
+        candidates.insert(0, path.with_suffix(".json.gz"))
+    for candidate in candidates:
+        if candidate.is_file():
+            if candidate.suffix == ".gz":
+                with gzip.open(candidate, "rt", encoding="utf-8") as f:
+                    return json.load(f)
+            return json.loads(candidate.read_text(encoding="utf-8"))
+    raise FileNotFoundError(f"no route dump at {' or '.join(str(c) for c in candidates)}")
+
+
+def _write_csv(rows: List[dict], path: Path) -> None:
+    import csv
+
+    if not rows:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main() -> int:
-    from routingdrift.quantization.analysis_utils import save_rows_csv
-    from routingdrift.quantization.io_utils import load_routes_raw, resolve_routes_path
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results_dir", required=True)
@@ -136,7 +173,7 @@ def main() -> int:
     args = ap.parse_args()
 
     results_dir = Path(args.results_dir)
-    baseline = load_routes_raw(results_dir / f"routes_{args.baseline}.json")
+    baseline = _load_routes(results_dir / f"routes_{args.baseline}.json")
 
     variants = args.variants
     if variants is None:
@@ -158,7 +195,7 @@ def main() -> int:
 
     rows = []
     for name in variants:
-        variant = load_routes_raw(resolve_routes_path(results_dir / f"routes_{name}.json"))
+        variant = _load_routes(results_dir / f"routes_{name}.json")
         stats = bootstrap_ci(baseline, variant, args.iterations, args.alpha, args.seed)
         stats = {"variant": name, **stats}
         rows.append(stats)
@@ -170,7 +207,7 @@ def main() -> int:
               f"[{stats['selection_shift_ci_low']:.4f}, {stats['selection_shift_ci_high']:.4f}]")
 
     out = results_dir / "drift_bootstrap_ci.csv"
-    save_rows_csv(rows, out)
+    _write_csv(rows, out)
     print(f"\n[Saved] {out}")
 
     if len(rows) >= 2:
