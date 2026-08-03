@@ -1,5 +1,7 @@
 config,lever,description,quantized_layers,routing_similarity_rs,jaccard_drift,overlap_at_k,selection_shift,gate_kl,nll,quant_audit,peak_vram_gb,residual_vram_gb,seconds
-fp16,baseline,Unquantized reference,0,1.0,0.0,1.0,0.0,0.0,2.276696,quantized modules: 0 of 3153 Linear (model is unquantized),13.02,12.92,357.4
+fp16,baseline,Unquantized reference,0,1.0,0.0,1.0,0.0,0.0,2.276696,quantized modules: 0 of 3153 Linear (model is unquantized),13.02,12.92,191.6
+nf4_gate_fp16,router_exemption,nf4 everywhere EXCEPT the routers,16,0.908964,0.091036,0.947653,0.052347,0.00319456,2.374592,"quantized modules: 3137 of 3153 Linear [Linear4bit=3137]; 16 layers touched, layers 0-15",16.93,16.69,250.5
+int8_gate_fp16,router_exemption,int8 everywhere EXCEPT the routers,16,0.955767,0.044233,0.974947,0.025053,0.00061608,2.281493,"quantized modules: 3137 of 3153 Linear [Linear8bitLt=3137]; 16 layers touched, layers 0-15",23.46,23.26,604.5
 nf4_L12,layer_coverage,nf4 on the first 12 layers only,12,0.892616,0.107384,0.938002,0.061998,0.00422291,2.360324,"quantized modules: 2365 of 3153 Linear [Linear4bit=2365]; 12 layers touched, layers 0-11",18.96,18.71,242.6
 nf4_L16,layer_coverage,nf4 on the first 16 layers only,16,0.885844,0.114156,0.933988,0.066012,0.00501273,2.363338,"quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15",22.42,22.32,264.4
 int8_t6,int8_threshold,"LLM.int8, outlier threshold 6.0 (bnb default)",16,0.95116,0.04884,0.972326,0.027674,0.00072682,2.279813,"quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15",19.69,,583.1

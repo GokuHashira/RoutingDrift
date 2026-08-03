@@ -16,7 +16,9 @@
       "nf4_L4",
       "nf4_L8",
       "nf4_L12",
-      "nf4_L16"
+      "nf4_L16",
+      "nf4_gate_fp16",
+      "int8_gate_fp16"
     ],
     "lm_eval_limit": null,
     "max_length": 128,
@@ -25,11 +27,11 @@
     "run_lm_eval": false,
     "top_k": 8
   },
-  "drift_points": 14,
+  "drift_points": 16,
   "experiment": "quantization_sweep",
   "git": {
     "branch": "upgrade-for-research",
-    "commit": "8aa089dca48ac42b1e43833200cb105de96296fa",
+    "commit": "fe4a8ee0d2048d717de7ff3891ed15457c549a2b",
     "dirty": false,
     "source": "modal add_local_dir (working tree, not a clone)"
   },
@@ -43,12 +45,12 @@
         "capability": "8.0",
         "index": 0,
         "multi_processor_count": 108,
-        "name": "NVIDIA A100-SXM4-80GB",
+        "name": "NVIDIA A100 80GB PCIe",
         "total_memory_gb": 79.25
       }
     ]
   },
-  "log_file": "/results/olmoe_sweep/logs/sweep_20260803T164921Z.log",
+  "log_file": "/results/olmoe_sweep/logs/sweep_20260803T191152Z.log",
   "model_name": "allenai/OLMoE-1B-7B-0924",
   "packages": {
     "accelerate": "1.14.0",
@@ -75,5 +77,5 @@
     "use_deterministic_algorithms": "True (warn_only)"
   },
   "status": "completed",
-  "timestamp_utc": "2026-08-03T17:04:34.431887+00:00"
+  "timestamp_utc": "2026-08-03T19:29:30.497351+00:00"
 }

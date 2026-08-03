@@ -170,7 +170,7 @@ is a common term that cancels in the config-to-config differences the correlatio
 on. A multiple-choice outcome has nothing to cancel: at `--lm_eval_limit 200` the standard
 error exceeds the effect being measured, as the accuracy table above shows.
 
-All fifteen configurations completed. The twelve full-coverage and layer-limited
+All seventeen configurations completed. The twelve full-coverage and layer-limited
 variants, ordered by drift:
 
 | config | jaccard drift | gate KL | dNLL vs FP16 |
@@ -193,16 +193,16 @@ Drift tracks quality loss strongly:
 
 | relationship | Pearson | Spearman |
 |---|---:|---:|
-| drift vs dNLL | **+0.919** | +0.951 |
-| gate KL vs dNLL | +0.878 | +0.967 |
+| drift vs dNLL | **+0.905** | +0.907 |
+| gate KL vs dNLL | +0.853 | +0.918 |
 | drift vs gate KL | **+0.978** | |
 
-Fitted over the 13 distinct quantized configurations. `nf4_L16` is excluded because it is
+Fitted over the 15 distinct quantized configurations. `nf4_L16` is excluded because it is
 bit-identical to `nf4_dq`: the layer-limited series enables double quantization, so
 restricting it to all 16 layers reproduces `nf4_dq` exactly, to six decimals on drift, gate
 KL, and NLL alike. That redundancy is an accidental but useful control, since two
 independent code paths agree exactly, and it confirms that `skip_modules` with n equal to
-the layer count is a correct no-op. Including the duplicate moves nothing: +0.921, +0.880,
+the layer count is a correct no-op. Including the duplicate moves nothing: +0.907, +0.855,
 and +0.978.
 
 **That third row is the problem, and it is the honest headline of this sub-study.** Gate KL
@@ -212,6 +212,42 @@ as well as drift does, and the two are 98% collinear. This correlation therefore
 establish that routing fidelity carries information beyond gate noise.** Separating them is
 what the causal intervention below is for, and why it is the load-bearing result rather
 than this table.
+
+#### Is drift the router being damaged, or reporting on damaged inputs?
+
+Every configuration above fuses two mechanisms into one number: the router's own weights are
+quantized, and the hidden states reaching it have already crossed quantized layers. Two
+control configurations separate them by quantizing everything **except** the 16 router
+modules, each matched to a config differing only in that respect.
+
+| config | routers | jaccard drift | gate KL | dNLL vs FP16 |
+|---|---|---:|---:|---:|
+| `int8_t6` | quantized | 0.0488 | 7.27e-04 | +0.0031 |
+| `int8_gate_fp16` | **FP16** | **0.0442** | 6.16e-04 | **+0.0048** |
+| `nf4` | quantized | 0.1140 | 4.98e-03 | +0.0872 |
+| `nf4_gate_fp16` | **FP16** | **0.0910** | 3.20e-03 | **+0.0979** |
+
+**The decomposition.** The router's own quantization accounts for **20% of nf4 drift** and 9%
+of INT8 drift. Upstream perturbation accounts for the other 80% and 91%. Drift is mostly an
+unchanged router reporting faithfully on damaged inputs, which is what the layer dial's
+smooth growth already hinted at.
+
+**The dissociation, which is the stronger result.** Exempting the router cuts drift by a
+fifth and makes NLL **worse**, by +0.0107 at nf4 and +0.0017 at INT8. This is an intervention
+that moves routing fidelity and output quality in **opposite directions**.
+
+That matters more than the 2.7% causal attribution. A small attribution can be argued down as
+a measurement artifact; a sign flip cannot. Routing fidelity can be improved by 20% while the
+model gets worse, so the two quantities are not merely weakly related, they are separable.
+
+**And it kills the obvious deployment recommendation.** Routers are roughly 0.5% of
+parameters, so keeping them in high precision is nearly free and looks like an easy win. It is
+counterproductive, and is reported here so nobody spends effort on it.
+
+Why the sign flips is not established. One candidate: a quantized router's errors are
+correlated with the errors in the expert weights it chooses among, since both come from the
+same quantization, so it may route away from experts whose damage matters most. Testing that
+needs a different intervention.
 
 Two side results fall out of the sweep. The layer dial is monotonic, which confirms an
 assumption the design rested on: bitsandbytes does honour `llm_int8_skip_modules` on 4-bit
@@ -643,7 +679,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 7. **Drift generalises across architectures, and finer granularity drifts more.** Corrected for top-k, INT4 changes 0.80 experts per token on Qwen3-30B-A3B (8 of 128), 0.53 on OLMoE (8 of 64), and 0.47 on DeepSeek-V2-Lite (6 of 64), all mutually disjoint at 95%. Raw jaccard drift inverts the OLMoE/DeepSeek ordering, because one swapped expert registers as `2/(k+1)` and so counts 29% larger at top-6 than at top-8.
 
-8. **Drift predicts quality loss, but so does gate KL, and they are 98% collinear.** Across 13 distinct quantization configurations, drift correlates with NLL increase at Pearson +0.919, gate KL at +0.878, and the two predictors with each other at **+0.978**. The correlation alone therefore cannot show that routing fidelity carries information beyond "the gate got noisier." Only the causal intervention in finding 5 separates them.
+8. **Drift predicts quality loss, but so does gate KL, and they are 98% collinear.** Across 15 distinct quantization configurations, drift correlates with NLL increase at Pearson +0.905, gate KL at +0.853, and the two predictors with each other at **+0.978**. The correlation alone therefore cannot show that routing fidelity carries information beyond "the gate got noisier." Only the causal intervention in finding 5 separates them.
 
 9. **The 4-bit data type dominates every other quantization knob.** fp4 drifts 34% more than nf4 at identical bit width (0.1524 against 0.1140), while the INT8 outlier threshold spans only 0.0476 to 0.0517 and double quantization and fp32 compute are indistinguishable from their baselines.
 
@@ -652,7 +688,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 ## Known Limitations
 
 - **Accuracy differences are below noise.** At `--lm_eval_limit 500` the largest INT4 drop is about 0.8 sigma. The drift-to-quality *correlation* therefore rests on differences that cannot be resolved at this evaluation budget; the causal replay result does not, since NLL over 119,952 token positions has far lower variance than 500 multiple-choice outcomes.
-- **The correlation rests on 13 distinct configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
+- **The correlation rests on 15 distinct configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **Drift and gate KL cannot be separated by correlation.** They are 98% collinear across the sweep, so the sweep establishes that drift tracks quality loss and not that it explains anything gate noise does not. The causal replay is the only evidence that distinguishes them, and it has run on one model.
 - **The cross-model drift-to-quality ordering rests on three points.** Spearman is +1.00 at INT8 and +0.50 at INT4. Three models can establish an ordering, not a fit, and capacity is uncontrolled: the INT4 break falls exactly on the 7B-versus-30B pair.
