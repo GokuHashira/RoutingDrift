@@ -27,6 +27,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::replay                # ~$1.00  the causal result
     modal run modal_app.py::deepseek_drift        # ~$0.85
     modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
+    modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
 ORDER AND PARALLELISM
@@ -414,6 +415,33 @@ def qwen_drift():
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/qwen36_moe")
+
+
+# ---------------------------------------------------------------------------
+# Compiler analysis on the REAL checkpoint -- CPU only, so nearly free
+# ---------------------------------------------------------------------------
+@app.function(image=pinned_image, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=60 * 60,
+              memory=32768)
+def compiler_breaks():
+    """
+    Graph-break analysis on the actual model instead of 2-layer random-init stubs.
+
+    No GPU: dynamo.explain traces the graph without executing kernels, so the result is
+    device-independent and this runs on a CPU container for pennies.
+
+    Replaces the three claims the audit found indefensible. On the real modeling code
+    OLMoE breaks roughly four times per layer at aten.nonzero in the expert dispatch,
+    whose output shape is data-dependent -- not "exactly 1 graph break" as the paper says.
+    Subgraph sizes are also wildly unequal, so 1/(breaks+1) was never a meaningful
+    "fraction compiled". The 78.8% routing-overhead figure is not recomputed at all: it
+    was a scale artifact of hidden-512 stubs and is retired.
+    """
+    _run(
+        "routingdrift.compiler.real_model_breaks",
+        "--model_name", OLMOE, *_rev(),
+        "--seq_len", "64",
+        "--output_dir", f"{RESULTS}/compiler_real",
+    )
 
 
 # ---------------------------------------------------------------------------
