@@ -440,7 +440,7 @@ def main() -> int:
         "nll_quantized": nll_quant,
         "routing_attribution": frac,
         "routing_attribution_uncorrected": frac_uncorrected,
-        "self_check": check,
+        "control_artifact_is_neutral": abs(artifact) <= 1e-4,
         "replay_info": replay_info,
     }
     (output_dir / "replay_result.json").write_text(json.dumps(result, indent=2, default=str))
