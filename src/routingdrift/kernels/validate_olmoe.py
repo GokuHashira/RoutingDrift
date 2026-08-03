@@ -12,23 +12,24 @@ from routingdrift.kernels.patch_models import load_olmoe
 
 load_dotenv(find_dotenv())
 
-OLMOE_PATH = os.getenv("OLMOE_PATH", "")
+# Falls back to the Hub id, matching patch_models, so this is runnable anywhere.
+OLMOE_PATH = os.getenv("OLMOE_PATH") or "allenai/OLMoE-1B-7B-0924"
 DEVICE = "cuda"
 TOL = 1e-2
 
 
 def validate_rms_norm_kernel():
+    """
+    Delegate to the canonical suite in rms_norm rather than keeping a second copy.
+
+    This function used to duplicate that test with `w=ones` only. When the shared suite
+    gained non-unit weights, this copy did not, so the run still exercised a case where
+    the weight multiply is a no-op and a kernel ignoring the weight would pass.
+    """
+    from routingdrift.kernels.rms_norm import test_correctness
+
     print("=== Step 1a: RMSNorm Kernel ===")
-    passed=True
-    for N in (512, 1024, 2048, 4096):
-        x=torch.randn(64, N, dtype=torch.float16, device=DEVICE)
-        w=torch.ones(N, dtype=torch.float16, device=DEVICE)
-        err=(fused_rms_norm(x, w)-torch_rms_norm(x, w)).abs().max().item()
-        ok=err<TOL
-        if not ok: passed=False
-        print(f"  hidden={N:5d} | max_err={err:.2e} | {'PASS' if ok else 'FAIL'}")
-    print(f"RMSNorm: {'ALL PASSED' if passed else 'SOME FAILED'}\n")
-    return passed
+    return test_correctness(hidden_sizes=(512, 1024, 2048, 4096), batch=64, tol=TOL)
 
 
 def validate_softmax_kernel():

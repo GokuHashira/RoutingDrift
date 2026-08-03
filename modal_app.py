@@ -78,6 +78,10 @@ _COMMON = [
 # the one check that validates this GPU against the committed A100 run cannot execute.
 # The bulky regenerable artifacts stay out -- results/compiler alone is 33 MB.
 _IGNORE = [
+    # .env is machine-local and gitignored for that reason. Shipping it let load_dotenv
+    # override the model path with a Zaratan mount that does not exist in the container,
+    # and a .env can hold tokens, which have no business in a remote image.
+    ".env",
     ".git", "hpc_runs", "HPC_Outputs", "temp", "docs", "*.zip",
     "results/kernels", "results/kernels_a100", "results/compiler",
     "results/report_plots", "results/*_rerun",
@@ -449,6 +453,10 @@ def kernel_profile():
     be a measurement rather than a guess.
     """
     _gpu_report()
+    # Explicit, so the stage does not depend on whatever a .env might have said.
+    os.environ["OLMOE_PATH"] = OLMOE
+    os.environ["MIXTRAL_PATH"] = os.environ.get("MIXTRAL_PATH", "")
+    ENV["OLMOE_PATH"] = OLMOE
     _run("routingdrift.kernels.validate_olmoe")
     _run(
         "routingdrift.kernels.profile_ops",
