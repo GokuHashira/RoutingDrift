@@ -343,7 +343,11 @@ def probe(n_prompts: int = 20):
 # ---------------------------------------------------------------------------
 # Stage 3 -- the correlation. This is the paper.
 # ---------------------------------------------------------------------------
-@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=8 * 60 * 60)
+# 2.5 hours. Measured at 220s per config on 2026-08-03, 15 configs is ~55 minutes, and
+# --resume means a timeout is recoverable rather than a loss. The old 8-hour ceiling was
+# sized for the lm-eval path and is $20 of unattended exposure on a $10 balance.
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=150 * 60)
 def sweep(quality: str = "nll"):
     """
     15 quantization configs -> drift and gate-KL against a quality loss.
@@ -459,7 +463,11 @@ def deepseek_drift():
 # ---------------------------------------------------------------------------
 # Stage 6 -- third architecture: granularity and the renormalisation axis
 # ---------------------------------------------------------------------------
-@app.function(image=latest_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=4 * 60 * 60)
+# 2 hours. The fp16 pass took ~8 minutes including a 3-minute download that is now
+# cached; three precisions plus NLL should land near 40 minutes. 4 hours unattended is
+# $10, the entire remaining balance.
+@app.function(image=latest_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=2 * 60 * 60)
 def qwen_drift():
     """
     Qwen3-30B-A3B-Base: 128 routed experts, top-8, no shared expert.
@@ -550,8 +558,14 @@ def kernel_profile():
           "clearest sign the old number was an artifact of scanning only the top 15 ops.")
 
 
+# 90 minutes, not 3 hours. The timeout is a spend cap, not a patience setting: this
+# stage compiles the same model five ways, and capture_dynamic_output_shape_ops on a
+# 16-layer MoE is exactly the kind of thing that can grind rather than fail. At $2.50/h
+# an unattended 3-hour ceiling is $7.50 of a $10 balance spent on a hang. Measured work
+# is well under an hour, and the CSV is written after every config, so hitting this
+# ceiling still leaves whatever finished.
 @app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
-              timeout=3 * 60 * 60)
+              timeout=90 * 60)
 def compile_benchmark():
     """
     Test the mechanism the other three sub-studies imply.
