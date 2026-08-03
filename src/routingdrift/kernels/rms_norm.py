@@ -61,15 +61,39 @@ def torch_rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float=1e-6) -> to
 
 
 def test_correctness(hidden_sizes=(128, 512, 2048, 4096), batch=32, tol=1e-2):
+    """
+    Correctness against the reference, with and without a non-trivial weight.
+
+    Every case here used to pass `w=ones`, which makes the weight multiply a no-op: a
+    kernel that ignored the weight entirely would have passed the whole suite. Learned
+    RMSNorm weights are never all ones.
+    """
     print("=== RMSNorm Correctness ===")
     passed=True
     for N in hidden_sizes:
         x=torch.randn(batch, N, dtype=torch.float16, device="cuda")
-        w=torch.ones(N, dtype=torch.float16, device="cuda")
-        max_err=(fused_rms_norm(x, w)-torch_rms_norm(x, w)).abs().max().item()
-        ok=max_err<tol
-        if not ok: passed=False
-        print(f"  hidden={N:5d} | max_err={max_err:.2e} | {'PASS' if ok else 'FAIL'}")
+        for wname, w in (
+            ("ones", torch.ones(N, dtype=torch.float16, device="cuda")),
+            ("random", torch.randn(N, dtype=torch.float16, device="cuda")),
+            ("scaled", torch.full((N,), 2.5, dtype=torch.float16, device="cuda")),
+        ):
+            max_err=(fused_rms_norm(x, w)-torch_rms_norm(x, w)).abs().max().item()
+            ok=max_err<tol
+            if not ok: passed=False
+            print(f"  hidden={N:5d} w={wname:7s} | max_err={max_err:.2e} | {'PASS' if ok else 'FAIL'}")
+
+    # A kernel that dropped the weight would match the reference only for w=ones, so
+    # assert explicitly that the weight changes the output.
+    N=hidden_sizes[-1]
+    x=torch.randn(batch, N, dtype=torch.float16, device="cuda")
+    ones=torch.ones(N, dtype=torch.float16, device="cuda")
+    twos=torch.full((N,), 2.0, dtype=torch.float16, device="cuda")
+    if torch.allclose(fused_rms_norm(x, ones), fused_rms_norm(x, twos)):
+        print("  FAIL: doubling the weight did not change the output; it is being ignored")
+        passed=False
+    else:
+        print("  weight is actually applied | PASS")
+
     print(f"Overall: {'ALL PASSED' if passed else 'SOME FAILED'}\n")
     return passed
 

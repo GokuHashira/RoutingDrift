@@ -204,6 +204,10 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description="Profile RMSNorm/Softmax kernels and model op breakdown")
     parser.add_argument("--out", required=True, help="Output directory for profiling CSVs")
     parser.add_argument("--model", default="OLMoE", choices=["OLMoE", "Mixtral"], help="Model to profile")
+    parser.add_argument("--legacy_attribution", action="store_true",
+                        help="Use the old kernel-name keyword matching. Kept only to "
+                             "reproduce the previously reported figure for comparison; it "
+                             "counts a residual add as RMSNorm and reports softmax as 0.")
     args=parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -211,5 +215,16 @@ if __name__=="__main__":
     sfx_rows=profile_softmax_isolated(args.out)
     base_ops, _=profile_model_ops(args.out, model_name=args.model, kernels=False)
     profile_model_ops(args.out, model_name=args.model, kernels=True)
-    compute_amdahl(args.out, rn_rows, sfx_rows, base_ops, model_name=args.model)
+
+    # Attribute by module rather than by kernel-name keyword. The legacy path is still
+    # reachable with --legacy_attribution purely so the old number can be reproduced for
+    # comparison in the writeup.
+    measured=None
+    if not args.legacy_attribution:
+        load_fn=load_olmoe if args.model=="OLMoE" else load_mixtral
+        print("\nMeasuring op fractions with record_function ranges:")
+        measured=measure_op_fractions(load_fn, precision="fp16" if args.model=="OLMoE" else "gptq",
+                                      label=args.model)
+        _save([measured], os.path.join(args.out, "profile_op_fractions_measured.csv"))
+    compute_amdahl(args.out, rn_rows, sfx_rows, base_ops, model_name=args.model, measured=measured)
     print("\nDone.")

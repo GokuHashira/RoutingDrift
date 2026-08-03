@@ -27,6 +27,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::replay                # ~$1.00  the causal result
     modal run modal_app.py::deepseek_drift        # ~$0.85
     modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
+    modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
     modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
@@ -415,6 +416,42 @@ def qwen_drift():
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/qwen36_moe")
+
+
+# ---------------------------------------------------------------------------
+# Kernel sub-study -- correctness and an honestly measured Amdahl ceiling
+# ---------------------------------------------------------------------------
+kernel_image = _image("transformers==4.46.0").pip_install("triton==3.1.0", "python-dotenv")
+
+
+@app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=2 * 60 * 60)
+def kernel_profile():
+    """
+    Re-measure the kernel sub-study with the attribution bug fixed.
+
+    The reported ~1.015x Amdahl ceiling rested on a fraction obtained by string-matching
+    CUDA kernel names, which counted a residual add as RMSNorm, missed the variance
+    reduction, always reported softmax as 0.00%, and matched nothing on Mixtral. Fractions
+    are now measured with record_function ranges around the real modules.
+
+    Also runs the correctness suite, which now includes non-unit RMSNorm weights. Every
+    previous case used w=ones, so a kernel that ignored the weight entirely would have
+    passed.
+
+    The conclusion is expected to hold -- the true fraction really is small -- but it will
+    be a measurement rather than a guess.
+    """
+    _gpu_report()
+    _run("routingdrift.kernels.validate_olmoe")
+    _run(
+        "routingdrift.kernels.profile_ops",
+        "--model", "OLMoE",
+        "--out", f"{RESULTS}/kernels_rerun/olmoe",
+    )
+    print("\nCompare profile_op_fractions_measured.csv against the committed "
+          "profile_amdahl.csv. A softmax_pct that is no longer exactly 0.00 is the "
+          "clearest sign the old number was an artifact of scanning only the top 15 ops.")
 
 
 # ---------------------------------------------------------------------------
