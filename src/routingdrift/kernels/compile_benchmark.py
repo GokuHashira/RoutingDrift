@@ -80,6 +80,28 @@ def _disable_cudnn_sdpa() -> str:
         return f"could not disable cuDNN SDPA: {type(exc).__name__}: {exc}"
 
 
+def _write_csv(rows: List[dict], path: str) -> None:
+    """
+    Rewrite the results CSV from scratch.
+
+    Called after EVERY configuration, not once at the end. Each compiled config costs
+    minutes of A100 time, and until this was incremental a preemption or a Ctrl-C at
+    config four discarded the three that had already succeeded -- the same failure that
+    cost this project ten minutes of completed MMLU when one lm-eval task crashed, and the
+    reason the sweep grew --resume.
+
+    Rewriting rather than appending because the fieldname union grows: a config that fails
+    contributes only {config, error}, and DictWriter needs the full header up front.
+    """
+    if not rows:
+        return
+    fieldnames = sorted({k for r in rows for k in r})
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _percentiles(times_ms: List[float]) -> Dict[str, float]:
     ordered = sorted(times_ms)
     def _p(q: float) -> float:
@@ -224,6 +246,7 @@ def main() -> int:
         seq, batch = token.strip().split("x")
         shapes.append((int(seq), int(batch)))
 
+    csv_path = os.path.join(args.out, "compile_benchmark.csv")
     selected = [c for c in CONFIGS if args.configs is None or c[0] in args.configs]
     rows: List[dict] = []
     baseline_p50: Dict[tuple, float] = {}
@@ -236,6 +259,7 @@ def main() -> int:
             print(f"  BUILD FAILED: {type(exc).__name__}: {exc}")
             rows.append({"config": config, "seq_len": "", "batch_size": "",
                          "error": f"{type(exc).__name__}: {exc}"})
+            _write_csv(rows, csv_path)
             continue
 
         for seq_len, batch_size in shapes:
@@ -288,15 +312,10 @@ def main() -> int:
 
         del model
         torch.cuda.empty_cache()
+        _write_csv(rows, csv_path)  # survive a preemption at any config boundary
 
-    path = os.path.join(args.out, "compile_benchmark.csv")
-    if rows:
-        fieldnames = sorted({k for r in rows for k in r})
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-        print(f"\nsaved: {path}")
+    _write_csv(rows, csv_path)
+    print(f"\nsaved: {csv_path}")
 
     print(f"\n{'config':<28} {'shape':>10} {'p50 ms':>9} {'vs eager':>9} {'breaks':>7}")
     print("-" * 68)
