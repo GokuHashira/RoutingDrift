@@ -57,14 +57,32 @@ verify:
 # rather than results/ for two reasons: the write guard blocks anything landing on the
 # committed Zaratan reference, and results/ is re-uploaded to the container on every
 # `modal run`, so pulling straight into it would ship experiment output back and forth.
+# GPU stages write to a Modal volume, never to this machine. Staged into results_modal/
+# rather than results/ for two reasons: the write guard blocks anything landing on the
+# committed Zaratan reference, and results/ is re-uploaded to the container on every
+# `modal run`, so pulling straight into it would ship experiment output back and forth.
+#
+# Pulled one directory at a time. A whole-volume pull is not available: a remote path of
+# '/' fails with "Is a directory", and the '**' glob form is deprecated and rejected.
+# Named remote paths work, so the stage directories are listed explicitly.
+STAGE_DIRS ?= smoke_top2 probe olmoe_top8 olmoe_sweep olmoe_replay \
+              compiler_real kernels_rerun deepseek_v2_lite qwen36_moe
+
 pull-results:
-	@# modal volume get refuses to write into a directory that already exists, so pull
-	@# into a temp and swap only on success -- a failed pull then cannot destroy the
-	@# copy from the previous one.
 	rm -rf results_modal.partial && mkdir -p results_modal.partial
-	@# '**' is the recursive form. A remote path of '/' makes modal treat the local
-	@# destination as a single file target and fail with "Is a directory".
-	modal volume get routingdrift-results '**' results_modal.partial
+	@for d in $(STAGE_DIRS); do \
+		if modal volume get routingdrift-results $$d results_modal.partial/$$d >/dev/null 2>&1; then \
+			echo "  pulled  $$d"; \
+		else \
+			echo "  absent  $$d"; \
+		fi; \
+	done
+	@modal volume get routingdrift-results mmlu_prompts.txt results_modal.partial/ >/dev/null 2>&1 \
+		&& echo "  pulled  mmlu_prompts.txt" || true
+	@if [ -z "$$(ls -A results_modal.partial)" ]; then \
+		echo "NOTHING PULLED. Check: modal volume ls routingdrift-results"; \
+		rm -rf results_modal.partial; exit 1; \
+	fi
 	rm -rf results_modal && mv results_modal.partial results_modal
 	@echo
 	@du -sh results_modal/* 2>/dev/null || true
