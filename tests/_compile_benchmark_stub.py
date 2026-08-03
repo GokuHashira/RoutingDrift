@@ -62,6 +62,14 @@ torch.cuda = types.SimpleNamespace(
     device_count=lambda: 0,
 )
 torch.__version__ = "2.5.0+stub"
+
+# The cuDNN SDPA backend toggle. Recorded so the test can assert it was actually turned
+# off: the compiled configs died on "No execution plans support the graph" without it,
+# and if it silently stopped being called only a GPU run would reveal that.
+SDPA_CALLS = []
+torch.backends = types.SimpleNamespace(
+    cuda=types.SimpleNamespace(enable_cudnn_sdp=lambda flag: SDPA_CALLS.append(flag))
+)
 torch.Generator = _Generator
 torch.randint = lambda lo, hi, shape, device=None, generator=None: object()
 torch.no_grad = contextlib.nullcontext
@@ -127,6 +135,8 @@ from routingdrift.kernels import compile_benchmark as cb  # noqa: E402
 
 assert cb._percentiles([5, 1, 3, 2, 4]) == {"p50": 3, "p90": 5, "p99": 5}
 assert cb._break_count() == 0, "empty counters must read 0, not -1"
+assert "disabled" in cb._disable_cudnn_sdpa() and SDPA_CALLS == [False]
+SDPA_CALLS.clear()
 
 out_dir = tempfile.mkdtemp()
 sys.argv = ["compile_benchmark", "--out", out_dir, "--shapes", "512x4,1024x4"]
@@ -184,5 +194,9 @@ assert "# command :" in stamped.read_text(encoding="utf-8")
 manifest = Path(out_dir) / "run_manifest_compile_benchmark.json"
 assert manifest.is_file(), sorted(p.name for p in Path(out_dir).iterdir())
 assert not (Path(out_dir) / "run_manifest.json").exists(), "would clobber a sibling stage"
+
+# Disabled ONCE, before any config is built, so all five share one attention backend.
+# Per-config toggling would make the speedup column partly a backend swap.
+assert SDPA_CALLS == [False], SDPA_CALLS
 
 print("ALL CONTROL-FLOW CHECKS PASS")

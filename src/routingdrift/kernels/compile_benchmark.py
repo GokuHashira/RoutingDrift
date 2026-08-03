@@ -46,6 +46,40 @@ WARMUP = 5
 MEASURE = 20
 
 
+def _disable_cudnn_sdpa() -> str:
+    """
+    Take the cuDNN attention backend out of the running, for every configuration.
+
+    The compiled configs died on:
+
+        RuntimeError: cuDNN Frontend error: [cudnn_frontend] Error: No execution plans
+        support the graph
+
+    This is NOT the deterministic-algorithms case that harness_eval._relaxed_cudnn
+    handles. That one is caused by set_global_seed pinning cudnn.deterministic=True, and
+    this module deliberately never calls it, so the flag is already False. What fails here
+    is torch 2.5's cuDNN SDPA backend refusing the tensor layouts Inductor hands it. Eager
+    is unaffected, which is why only the compiled rows failed.
+
+    Disabling it falls back to flash / mem-efficient attention, which every eager number
+    in this project already uses.
+
+    Applied to ALL FIVE configurations, not just the compiled ones. If eager ran on cuDNN
+    SDPA and compiled ran on flash, the speedup column would be partly an attention-backend
+    swap, and the entire experiment would be measuring the wrong thing. Sharing one backend
+    costs comparability against benchmark_olmoe.csv, which was measured before this was
+    disabled; the eager baseline is re-measured inside this run precisely so every number
+    in this table is internally consistent.
+    """
+    try:
+        if hasattr(torch.backends.cuda, "enable_cudnn_sdp"):
+            torch.backends.cuda.enable_cudnn_sdp(False)
+            return "cuDNN SDPA disabled for all configs (flash / mem-efficient instead)"
+        return "cuDNN SDPA toggle unavailable on this torch; left at default"
+    except Exception as exc:  # noqa: BLE001
+        return f"could not disable cuDNN SDPA: {type(exc).__name__}: {exc}"
+
+
 def _percentiles(times_ms: List[float]) -> Dict[str, float]:
     ordered = sorted(times_ms)
     def _p(q: float) -> float:
@@ -183,6 +217,7 @@ def main() -> int:
 
     os.makedirs(args.out, exist_ok=True)
     log_path = _start_log(args.out)
+    print(f"[attn] {_disable_cudnn_sdpa()}")
 
     shapes = []
     for token in args.shapes.split(","):
