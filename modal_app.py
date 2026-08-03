@@ -343,6 +343,44 @@ def probe(n_prompts: int = 20):
 # ---------------------------------------------------------------------------
 # Stage 3 -- the correlation. This is the paper.
 # ---------------------------------------------------------------------------
+_SWEEP_TOTAL_CONFIGS = 15
+_SWEEP_CHUNK = 6
+
+
+def _sweep_scored_configs() -> set:
+    """Config names already present in sweep_drift.csv. Empty if it does not exist yet."""
+    import csv
+    import os
+
+    path = f"{RESULTS}/olmoe_sweep/sweep_drift.csv"
+    results_vol.reload()
+    if not os.path.isfile(path):
+        return set()
+    with open(path, encoding="utf-8") as f:
+        return {r["config"] for r in csv.DictReader(f) if r.get("config")}
+
+
+def _run_sweep_chunk(quality: str) -> None:
+    """One sweep invocation, capped at _SWEEP_CHUNK configs, resuming what is done."""
+    _run(
+        "routingdrift.quantization.sweep",
+        "--model_name", OLMOE, *_rev(),
+        "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
+        "--output_dir", f"{RESULTS}/olmoe_sweep",
+        "--top_k", "8", "--target_module", "mlp.gate",
+        "--max_length", "128", "--seed", "0",
+        "--resume",
+        "--max_configs", str(_SWEEP_CHUNK),
+        "--quality", quality,
+        # sweep.py runs lm-eval off --run_lm_eval, independently of --quality, so the flag
+        # has to be added rather than implied. Omitting it while passing quality="both"
+        # would silently produce an NLL-only run under a name that promised accuracy.
+        *(["--run_lm_eval",
+           "--lm_eval_tasks", "mmlu", "hellaswag",
+           "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
+           "--lm_eval_limit", "200", "--lm_eval_device", "cuda"]
+          if quality in ("both", "lm_eval") else []),
+    )
 # 2.5 hours. Measured at 220s per config on 2026-08-03, 15 configs is ~55 minutes, and
 # --resume means a timeout is recoverable rather than a loss. The old 8-hour ceiling was
 # sized for the lm-eval path and is $20 of unattended exposure on a $10 balance.
@@ -380,26 +418,32 @@ def sweep(quality: str = "nll"):
     to the floor that an "accuracy drop" carries no signal to correlate against.
     """
     _gpu_report()
-    _run(
-        "routingdrift.quantization.sweep",
-        "--model_name", OLMOE, *_rev(),
-        "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
-        "--output_dir", f"{RESULTS}/olmoe_sweep",
-        "--top_k", "8", "--target_module", "mlp.gate",
-        "--max_length", "128", "--seed", "0",
-        # 15 configs is long enough that a preemption without --resume could restart the
-        # whole sweep repeatedly and never finish.
-        "--resume",
-        "--quality", quality,
-        # sweep.py runs lm-eval off --run_lm_eval, independently of --quality, so the flag
-        # has to be added rather than implied. Omitting it while passing quality="both"
-        # would silently produce an NLL-only run under a name that promised accuracy.
-        *(["--run_lm_eval",
-           "--lm_eval_tasks", "mmlu", "hellaswag",
-           "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
-           "--lm_eval_limit", "200", "--lm_eval_device", "cuda"]
-          if quality in ("both", "lm_eval") else []),
-    )
+    # One invocation per chunk, in a FRESH process each time.
+    #
+    # A single process cannot finish all 15 configs: something in
+    # torch/accelerate/bitsandbytes retains every model the loop loads, so residual VRAM
+    # climbs by one model per config (13 -> 75 GB over eleven) and config 14 OOMed with 13
+    # already scored. --max_configs makes the process stop cleanly before that, and
+    # --resume makes the next one skip what is done. Process exit is what actually returns
+    # the memory, since no combination of del / gc.collect / empty_cache does.
+    #
+    # The cost of a chunk boundary is one rescored fp16 baseline (~220s), because gate_kl
+    # needs the baseline's per-token gate distributions and those are not persisted.
+    for attempt in range(1, 6):
+        before = _sweep_scored_configs()
+        print(f"\n[sweep] chunk {attempt}: {len(before)} config(s) already scored")
+        _run_sweep_chunk(quality)
+        after = _sweep_scored_configs()
+        if len(after) >= _SWEEP_TOTAL_CONFIGS:
+            print(f"[sweep] all {len(after)} configs scored after {attempt} chunk(s)")
+            break
+        if after == before:
+            print(f"[sweep] chunk {attempt} scored nothing new ({len(after)} total). "
+                  f"Stopping rather than looping: something other than memory is wrong.")
+            break
+    else:
+        print("[sweep] hit the chunk limit with configs still unscored; re-run the stage.")
+
     print("\nRead sweep_correlations.csv: jaccard_drift AND gate_kl are both correlated")
     print("against the quality loss. If gate_kl explains as much, routing fidelity is a")
     print("proxy for gate noise rather than a metric, and the paper must say so.")
@@ -512,6 +556,12 @@ def qwen_drift():
         # Drift with nothing to relate it to is half a result. The sweep supplies NLL for
         # OLMoE only, so without this the cross-model table has quality for one of three.
         "--measure_nll",
+        # Resume. The fp16/int8/int4 route dumps from the 2026-08-03 run are already on the
+        # volume, so this rerun exists only to produce the summary CSV that the fieldname
+        # bug destroyed, plus the NLL that run never reached. With --measure_nll set,
+        # run_for_precision still LOADS each model (NLL needs it) but reuses the saved
+        # routes instead of recollecting them, which also skips the determinism re-runs.
+        "--resume",
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/qwen3_30b_a3b")

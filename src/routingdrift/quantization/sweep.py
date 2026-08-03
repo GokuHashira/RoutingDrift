@@ -73,6 +73,20 @@ from routingdrift.quantization.routing_logger import (
 # freed 7B model in nf4 should leave well under a gigabyte behind.
 _RESIDUAL_WARN_GB = 2.0
 
+# Stop the process when residual reaches this. Something in torch/accelerate/bitsandbytes
+# retains every model this loop loads -- measured at +6.6 GB per int8 config and +3.7 GB
+# per nf4 config, climbing 13 -> 75 GB across eleven configs before the twelfth OOMed. The
+# retainer is not in this project's code (no module-level caches; the route hooks are
+# removed and their tensors moved to CPU; collect_routes_and_probs and mean_nll are both
+# @torch.no_grad()), and no amount of `del` plus gc.collect() plus empty_cache() releases
+# it.
+#
+# So the loop stops while it can still exit cleanly rather than dying mid-load. Everything
+# scored is on disk already and --resume skips it, which turns an OOM crash into a chunked
+# run that finishes. 55 GB leaves headroom for the largest config here: a partially
+# quantized nf4_L* peaks around 12 GB above residual.
+_RESIDUAL_STOP_GB = 55.0
+
 
 def _free() -> None:
     gc.collect()
@@ -131,6 +145,7 @@ def run_sweep(args: argparse.Namespace) -> int:
     # sweep must be able to pick up where it stopped or it may never converge.
     already_done: set = set()
     resumed_rows: List[dict] = []
+    scored_here = 0  # configs scored in THIS process, for --max_configs and the residual stop
     if args.resume:
         prior = output_dir / "sweep_drift.csv"
         if prior.is_file():
@@ -265,9 +280,7 @@ def run_sweep(args: argparse.Namespace) -> int:
             residual = torch.cuda.memory_allocated() / 1024**3
             if residual > _RESIDUAL_WARN_GB:
                 print(f"[sweep] WARNING residual VRAM after cleanup: {residual:.2f} GB. "
-                      f"Memory is not being released between configs; at this rate the "
-                      f"sweep will OOM before all {len(specs)} configs finish. The "
-                      f"already-scored configs are saved and --resume will skip them.")
+                      f"Memory is not being released between configs.")
 
         if baseline_routes is None:
             baseline_routes, baseline_probs = routes, probs
@@ -307,6 +320,27 @@ def run_sweep(args: argparse.Namespace) -> int:
         print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  "
               f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  "
               f"residual={residual:.1f}GB  {elapsed:.0f}s")
+
+        # Checked AFTER the row is appended and written, so the config that tripped the
+        # limit is kept rather than repeated on the next invocation.
+        scored_here += 1
+        stop_reason = None
+        if residual >= _RESIDUAL_STOP_GB:
+            stop_reason = (f"residual VRAM {residual:.1f} GB >= {_RESIDUAL_STOP_GB:.0f} GB, "
+                           f"so the next load would risk OOM")
+        elif args.max_configs and scored_here >= args.max_configs:
+            stop_reason = f"--max_configs {args.max_configs} reached"
+        if stop_reason:
+            done_now = {d["config"] for d in drift_rows} | already_done
+            remaining = [s.name for s in specs
+                         if s.name != "fp16" and s.name not in done_now]
+            print(f"\n[sweep] STOPPING EARLY: {stop_reason}.")
+            print(f"[sweep] {scored_here} config(s) scored in this process; "
+                  f"{len(remaining)} remaining: {', '.join(remaining) or 'none'}")
+            print("[sweep] Everything scored is saved. Re-run the SAME command to "
+                  "continue: --resume skips it and a fresh process starts at zero "
+                  "residual.")
+            break
 
         if args.run_lm_eval:
             tasks = [t for arg in args.lm_eval_tasks for t in arg.split(",") if t.strip()]
@@ -514,6 +548,13 @@ def main() -> int:
                     help=f"Subset of: {', '.join(quant_configs.BY_NAME)}. fp16 must come first.")
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--no_deterministic", action="store_true")
+    ap.add_argument(
+        "--max_configs", type=int, default=None,
+        help="Score at most N configs in this process, then exit cleanly. Pair with "
+             "--resume to chunk a sweep across fresh processes, which is the only "
+             "reliable way around the per-config memory retention. See "
+             "_RESIDUAL_STOP_GB.",
+    )
     ap.add_argument(
         "--resume",
         action="store_true",
