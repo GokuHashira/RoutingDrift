@@ -29,11 +29,19 @@ OLMOE_AMDAHL     =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_amdahl.
 MIXTRAL_AMDAHL   =os.path.join(REPO,"results/kernels/mixtral/mixtral/profile_amdahl.csv")
 RMSNorm_ISO      =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_rmsnorm_isolated.csv")
 SOFTMAX_ISO      =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_softmax_isolated.csv")
+# Pre-rerun, and deliberately so: the bandwidth proxy was not re-measured, so this is the
+# only version that exists. Everything else here reads results/kernels_rerun.
 NSIGHT_CSV       =os.path.join(REPO,"results/kernels/olmoe/profile_nsight_proxy.csv")
 DRIFT_CSV        =os.path.join(REPO,"results/olmoe_top8/routing_drift_summary.csv")
 DRIFT_LAYERS_CSV =os.path.join(REPO,"results/olmoe_top8/routing_drift_layers.csv")
 LMEVAL_FP16_JSON =os.path.join(REPO,"results/olmoe_top8/lm_eval/lm_eval_fp16_mmlu.json")
-COMPILER_JSON    =os.path.join(REPO,"results/compiler/metrics_summary.json")
+# The real-checkpoint analysis, not results/compiler/metrics_summary.json, which came from
+# 2-layer stubs and reports 1 graph break per model against the real 23. Its schema is flat
+# where the stub's was nested under "graph_11", so plot_compiler detects the difference and
+# skips rather than drawing something it cannot read. That figure is retired, not stale:
+# its third panel plotted pct_compiled = 1/(breaks+1), and measured subgraph sizes span
+# 4 to 77 nodes.
+COMPILER_JSON    =os.path.join(REPO,"results/compiler_real/real_model_graph_breaks.json")
 
 # ── palette ───────────────────────────────────────────────────────────────────
 C={
@@ -366,6 +374,15 @@ def plot_amdahl(olmoe_amdahl, rn_rows, sfx_rows, plots_dir):
 def plot_compiler(compiler_data, plots_dir):
     if not compiler_data:
         print("  skip plot 9: compiler JSON not found")
+        return
+    # This plot was written against the stub-era summary, keyed per model with a "graph_11"
+    # block holding total_graph_breaks and pct_compiled. The real-checkpoint analysis is a
+    # flat document and has no pct_compiled, because that quantity is retired. Refuse
+    # rather than emit a figure that contradicts the text it sits next to.
+    if not any(isinstance(v, dict) and "graph_11" in v for v in compiler_data.values()):
+        print("  skip plot 9: this reads the retired stub-era schema (graph_11 / "
+              "pct_compiled). The real-checkpoint result is 23 graph breaks removable to 0 "
+              "by one config flag, reported as a table. Do not regenerate this figure.")
         return
     fig,axes=plt.subplots(1,3,figsize=(15,5))
 

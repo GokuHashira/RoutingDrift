@@ -49,9 +49,16 @@ cpu-smoke:
 		--top_k 2 --max_length 32 --skip_heatmaps
 	$(PYTHON) -m routingdrift.quantization.verify_reproducibility --results_dir $(SCRATCH)/run
 
+# Recompute every committed drift metric from the raw route dumps, for all three models.
+# Was pointed at results/olmoe_top2_zaratan, which is the RETIRED top-2 run: the command
+# advertised as verifying the published numbers was verifying numbers the paper no longer
+# reports. Stdlib only, so this runs anywhere with a Python interpreter.
 verify:
-	$(PYTHON) -m routingdrift.quantization.verify_reproducibility \
-		--results_dir results/olmoe_top2_zaratan
+	@for d in olmoe_top8 deepseek_v2_lite qwen3_30b_a3b; do \
+		echo; echo "=== $$d ==="; \
+		PYTHONPATH=src $(PYTHON) -m routingdrift.quantization.verify_reproducibility \
+			--results_dir results/$$d || exit 1; \
+	done
 
 # GPU stages write to a Modal volume, never to this machine. Everything on that volume is
 # mirrored into modal_outputs/: every run's outputs and every log, minus model weights,

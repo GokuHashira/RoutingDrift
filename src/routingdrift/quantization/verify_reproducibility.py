@@ -67,8 +67,14 @@ def main() -> int:
         "--results_dir",
         "--results-dir",
         type=str,
-        default="results/olmoe_top2_zaratan",
-        help="Directory holding routes_*.json and routing_drift_*.csv.",
+        required=True,
+        help=(
+            "Directory holding routes_*.json and routing_drift_*.csv, e.g. "
+            "results/olmoe_top8. REQUIRED: this defaulted to results/olmoe_top2_zaratan, "
+            "the retired top-2 run, so an argumentless invocation reported PASSED for "
+            "numbers the paper no longer makes. There is no correct default across three "
+            "models. `make verify` runs all of them."
+        ),
     )
     ap.add_argument("--baseline", type=str, default="fp16", help="Baseline variant name.")
     ap.add_argument(

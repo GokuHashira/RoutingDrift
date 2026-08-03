@@ -458,95 +458,135 @@ scripts) are excluded from version control.
 
 ## How to Run
 
-All commands run from the repo root, after `pip install -e ".[all]"`.
+Three tiers, cheapest first. **Most readers want tier 0**, which needs no GPU, no model
+download, and no third-party packages at all.
 
-### Routing Drift *(GPU required)*
+### Tier 0: check the published numbers *(no GPU, no dependencies)*
+
+Every drift figure in this README is recomputed from the raw per-token route dumps
+committed under `results/`. `verify_reproducibility`, `bootstrap.py` and
+`compare_models.py` are **stdlib only**: no torch, no transformers, no downloads.
 
 ```bash
-# 1. Build a ~100-question MMLU prompt set
+git clone https://github.com/GokuHashira/RoutingDrift.git && cd RoutingDrift
+
+# Recompute every committed drift metric from the raw routes, for all three models.
+make verify
+
+# Confidence intervals, resampling prompts rather than token rows. A few minutes each.
+PYTHONPATH=src python3 -m routingdrift.quantization.bootstrap --results_dir results/olmoe_top8
+PYTHONPATH=src python3 -m routingdrift.quantization.bootstrap --results_dir results/deepseek_v2_lite
+PYTHONPATH=src python3 -m routingdrift.quantization.bootstrap --results_dir results/qwen3_30b_a3b
+
+# The cross-model table, corrected for top-k, with intervals and quality.
+PYTHONPATH=src python3 -m routingdrift.quantization.compare_models \
+    --run olmoe:results/olmoe_top8:8 \
+    --run deepseek:results/deepseek_v2_lite:6 \
+    --run qwen3-30b:results/qwen3_30b_a3b:8
+```
+
+`make verify` recomputes each model's `routing_drift_summary.csv` and per-layer table from
+its route dumps and fails if anything deviates past 1e-05. It also re-checks the
+self-consistency guard, that a route set compared against itself scores exactly 1.0.
+
+### Tier 1: pipeline sanity, and the figures *(no GPU)*
+
+```bash
+make cpu-smoke            # builds a 0.17M-param MoE and runs the real pipeline on it
+make check-imports        # every intra-project import resolves, nothing executed
+make init-dev && make test
+
+# Figures. Needs matplotlib and numpy; use a venv that is NOT your Modal client venv.
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[viz]"   # matplotlib + numpy, no torch
+python -m routingdrift.reporting.generate_report
+```
+
+`generate_report` prints its data sources before writing. Check them: it should read
+`results/olmoe_top8` and `results/kernels_rerun`, not `olmoe_top2_zaratan` or
+`results/kernels`. Output goes to `results/report_plots_rerun/` so the committed figures
+are not overwritten. `plot 9` is skipped deliberately: its central quantity, `pct_compiled`,
+is retired.
+
+### Tier 2: reproduce the GPU results *(Modal, ~$20 of A100 time)*
+
+**This is how every number in this README was produced.** `modal_app.py` holds each stage
+with its exact pins, prompts, seeds and output paths, so this is the path to copy rather
+than the raw module commands below.
+
+```bash
+pip install modal && modal token new
+
+modal run modal_app.py::smoke                 # ~$0.65  START HERE, then stop and read it
+modal run --detach modal_app.py::task1        # ~$1.90  three precisions + accuracy
+modal run --detach modal_app.py::sweep        # ~$1     17 configs, NLL, auto-chunked
+modal run --detach modal_app.py::replay       # ~$1     the causal result
+modal run --detach modal_app.py::deepseek_drift   # ~$0.85
+modal run --detach modal_app.py::qwen_drift       # ~$2.50
+modal run --detach modal_app.py::kernel_profile   # ~$0.50
+modal run --detach modal_app.py::kernel_benchmark # ~$0.30
+modal run --detach modal_app.py::compile_benchmark # ~$2.50  the negative compiler result
+modal run modal_app.py::compiler_breaks       # CPU only
+
+make pull-results         # mirrors the whole volume into modal_outputs/ (gitignored)
+```
+
+Use `--detach` for anything past `smoke`. Without it the run dies when your client
+disconnects, and a closed laptop lid already killed one paid run here.
+
+`task1` must precede `sweep`, `replay`, `deepseek_drift` and `qwen_drift`: it writes the
+prompt file they all read. Everything after that is parallel-safe, since each `modal run`
+gets its own container and GPU and they write to different directories.
+
+Two stages need explaining. `sweep` invokes its module repeatedly rather than once: the
+loop retains every model it loads, so a single process runs out of an 80 GB card around the
+fourteenth config, and `--resume` plus a per-process cap is what gets all 17 scored.
+`backfill_nll` exists only because OLMoE and DeepSeek were measured before the pipeline
+recorded quality; a fresh reproduction does not need it, since `--measure_nll` is now on by
+default in the drift stages.
+
+### Tier 3: raw module commands *(only if you have your own A100)*
+
+Prefer tier 2. These are the underlying entry points, useful for changing something a
+Modal stage does not expose.
+
+```bash
 python -m routingdrift.quantization.build_mmlu_prompts --n 100 --seed 0 \
     --out results/mmlu_prompts.txt
 
-# 2. Drift at OLMoE's real top-8, across FP16/INT8/INT4, with accuracy eval
 python -m routingdrift.quantization.run_experiment \
     --model_name allenai/OLMoE-1B-7B-0924 \
-    --revision <commit-sha> \
-    --precisions fp16 int8 int4 \
-    --target_module mlp.gate \
-    --prompts_file results/mmlu_prompts.txt \
-    --output_dir results/olmoe_top8 \
-    --top_k 8 --seed 0 \
-    --run_lm_eval --lm_eval_tasks mmlu gsm8k hellaswag
+    --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 \
+    --precisions fp16 int8 int4 --target_module mlp.gate \
+    --prompts_file results/mmlu_prompts.txt --output_dir results/olmoe_run \
+    --top_k 8 --max_length 128 --seed 0 --measure_nll --resume
 
-# 3. Confirm the outputs are internally consistent
-python -m routingdrift.quantization.verify_reproducibility --results_dir results/olmoe_top8
-```
-
-Every run writes `run_manifest.json` (library versions, GPU, checkpoint revision, git commit, seeds, guard results) and a timestamped log under `<output_dir>/logs/`.
-
-### Quantization sweep *(GPU required)*
-
-Three precision points give two non-trivial drift values, which cannot support a correlation. The sweep walks 15 operating points, all derived from the same FP16 checkpoint so no second quantization algorithm is introduced as a confound.
-
-```bash
 python -m routingdrift.quantization.sweep \
-    --model_name allenai/OLMoE-1B-7B-0924 --revision <commit-sha> \
-    --prompts_file results/mmlu_prompts.txt \
-    --output_dir results/olmoe_sweep --top_k 8 --target_module mlp.gate \
-    --run_lm_eval --lm_eval_limit 200
-```
+    --model_name allenai/OLMoE-1B-7B-0924 \
+    --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 \
+    --prompts_file results/mmlu_prompts.txt --output_dir results/olmoe_sweep_run \
+    --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 \
+    --quality nll --resume --max_configs 6      # repeat until all 17 are scored
 
-`sweep_correlations.csv` correlates accuracy drop against **both** routing drift and a gate-distribution KL control. If the KL explains the drop as well as drift does, routing fidelity is a proxy for gate noise rather than a metric, and the paper should say so.
-
-Run `python -m routingdrift.quantization.quant_configs` to list the 15 configurations.
-
-### Causal route replay *(GPU required)*
-
-Runs the FP16 model ,  full-precision weights everywhere, while forcing the expert selections a quantized model made, and reports what fraction of the quantized degradation routing alone explains.
-
-```bash
 python -m routingdrift.quantization.route_replay \
-    --model_name allenai/OLMoE-1B-7B-0924 --revision <commit-sha> \
-    --prompts_file results/mmlu_prompts.txt \
-    --baseline_routes results/olmoe_top8/routes_fp16.json \
-    --replay_routes  results/olmoe_top8/routes_int4.json \
-    --quant_precision int4 --top_k 8 --output_dir results/olmoe_replay
+    --model_name allenai/OLMoE-1B-7B-0924 \
+    --routes_dir results/olmoe_top8 --prompts_file results/mmlu_prompts.txt \
+    --quant_precision int4 --output_dir results/replay_run
+
+python -m routingdrift.kernels.validate_olmoe                   # correctness first
+python -m routingdrift.kernels.benchmark      --model OLMoE --out results/kernels_run
+python -m routingdrift.kernels.profile_ops    --model OLMoE --out results/kernels_run
+python -m routingdrift.kernels.compile_benchmark --out results/kernels_run
+
+python -m routingdrift.compiler.real_model_breaks \
+    --model_name allenai/OLMoE-1B-7B-0924 --output_dir results/compiler_run
 ```
 
-Measured with NLL on the fixed prompt set rather than a benchmark score: replay is positional, so recorded routes align with *these* prompts token for token, and lm-eval's own documents would have nothing to align against.
-
-Check `intervention_artifact` in the output. OLMoE sets `norm_topk_prob=False`, so masking non-selected experts shifts mixing weights as well as selection; attribution is reported against a control that measures exactly that.
-
-### Kernel Optimization *(GPU required)*
-
-```bash
-python -m routingdrift.kernels.validate_olmoe          # numerical correctness first
-python -m routingdrift.kernels.validate_mixtral
-
-python -m routingdrift.kernels.benchmark    --model OLMoE --out results/kernels/olmoe
-python -m routingdrift.kernels.profile_ops  --model OLMoE --out results/kernels/olmoe
-python -m routingdrift.kernels.nsight_proxy --out results/kernels/olmoe
-python -m routingdrift.kernels.eval_accuracy
-python -m routingdrift.kernels.results_table --model OLMoE --out results/kernels/olmoe
-```
-
-Requires `OLMOE_PATH` and `MIXTRAL_PATH` in a `.env` file (see `.env.example`); these modules raise at import time if they are unset.
-
-### Compiler Analysis *(CPU-friendly stubs available)*
-
-```bash
-python -m routingdrift.compiler.main   # analyses OLMoE and Mixtral in one pass
-```
-
-Takes no arguments: it builds both stubs and runs all five phases. Outputs land in `results/compiler/`.
-
-### Report *(no GPU needed, reads existing results)*
-
-```bash
-python -m routingdrift.reporting.generate_report --out results/report_plots
-```
-
----
+**Pin the revision for anything you intend to report.** An unpinned id resolves to whatever
+`main` points at that day, and the three models' numbers stop being comparable. And record
+your `bitsandbytes` version: quantized routing is not reproducible across software stacks
+(see the reproducibility finding above), so a stack difference is indistinguishable from a
+result. Every run writes a `run_manifest.json` capturing this automatically.
 
 ## Reproducibility
 
