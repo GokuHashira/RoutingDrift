@@ -94,11 +94,16 @@ The core question here: when you quantize a MoE model to INT8 or INT4, does the 
 
 We hook the gate layer in OLMoE-1B-7B, run 100 MMLU questions (119,952 token positions across 16 layers) through FP16, INT8, and INT4, and compare the full **top-8** expert selections. All three precisions are deterministic: routes are bit-identical across repeated passes.
 
-| Precision | Routing Similarity | Jaccard Drift | Overlap@k | Selection Shift |
-|-----------|--------------------|---------------|-----------|-----------------|
-| FP16      | 1.0000             | 0.0000        | 1.0000    | 0.0000          |
-| INT8      | 0.9512             | 0.0488        | 0.9723    | 0.0277          |
-| INT4      | 0.8858             | 0.1142        | 0.9340    | 0.0660          |
+| Precision | Routing Similarity | Jaccard Drift (95% CI) | Overlap@k | Selection Shift (95% CI) |
+|-----------|--------------------|------------------------|-----------|--------------------------|
+| FP16      | 1.0000             | 0.0000                 | 1.0000    | 0.0000                   |
+| INT8      | 0.9512             | **0.0488** [0.0477, 0.0501] | 0.9723 | 0.0277 [0.0270, 0.0284] |
+| INT4      | 0.8858             | **0.1142** [0.1123, 0.1163] | 0.9340 | 0.0660 [0.0649, 0.0673] |
+
+Intervals are bootstrap percentiles over 2000 resamples, **resampling prompts rather than
+token rows**. Rows within a prompt share a context and are heavily correlated, so
+resampling them would treat ~1200 dependent observations as independent and produce an
+interval far narrower than the data supports. The two precisions are cleanly separated.
 
 Two numbers describe this, and they sound very different:
 
@@ -116,6 +121,13 @@ Accuracy over the same corpus:
 | INT4 | 0.5320 | 0.6840 |
 
 **None of these drops is statistically distinguishable from zero.** At `--lm_eval_limit 500` the largest, INT4 on HellaSwag, is about 0.8 sigma. Reported as measured, with that caveat, rather than as a degradation.
+
+The contrast with the drift table is itself informative. On the same 100 prompts, drift is
+resolved to within +/-0.002 and the two precisions are unambiguously distinct, while no
+accuracy difference clears two sigma. **Routing fidelity is a far more sensitive instrument
+than downstream accuracy** -- which is what makes the causal question below answerable at
+all, and why it is answered with NLL over 119,952 token positions rather than with 500
+multiple-choice outcomes.
 
 ### Does routing drift actually cause the damage?
 
