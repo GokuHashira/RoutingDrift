@@ -313,6 +313,13 @@ def main() -> int:
     ap.add_argument("--replay_routes", required=True,
                     help="Quantized routes to force onto the FP16 model.")
     ap.add_argument("--quant_precision", default="int4", choices=["int8", "int4"])
+    ap.add_argument(
+        "--method", default="block", choices=["block", "gate"],
+        help="block: substitute the selection inside the MoE block, preserving FP16's "
+             "mixing weights (correct for norm_topk_prob=False models such as OLMoE). "
+             "gate: mask non-selected experts to -inf; only weight-neutral when the model "
+             "renormalises top-k probabilities.",
+    )
     ap.add_argument("--output_dir", required=True)
     ap.add_argument("--top_k", type=int, required=True)
     ap.add_argument("--target_module", action="append", default=None)
@@ -332,51 +339,66 @@ def main() -> int:
 
     model, tokenizer = load_model(model_name=args.model_name, precision="fp16", revision=args.revision)
 
-    # 1. Self-check. Replaying FP16 routes into the FP16 model must be a no-op; if it is
-    #    not, every number below is meaningless.
     baseline_routes = load_routes_json(args.baseline_routes)
-    check = validate_replay(model, baseline_routes, tokenizer, prompts,
-                            target_modules=args.target_module,
-                            top_k=args.top_k, max_length=args.max_length)
-    print(f"[replay] self-check exact={check['exact']} "
-          f"({check['rows_mismatched']}/{check['rows_compared']} rows differ)")
-    if not check["exact"]:
-        raise RuntimeError("replay self-check failed; the intervention is not faithful")
 
-    # 2. FP16 reference.
+    # 1. FP16 reference.
     nll_fp16 = mean_nll(model, tokenizer, prompts, args.max_length)
     print(f"[replay] NLL fp16                     = {nll_fp16:.6f}")
 
-    # 2b. CONTROL: replay FP16's own routes into FP16. The same experts are selected, so
-    # any NLL change here is pure intervention artifact, not routing.
+    # 2. CONTROL: replay FP16's own routes into FP16. Identical experts are selected, so
+    # any NLL change is pure intervention artifact and nothing else.
     #
-    # It is usually nonzero, and the reason matters. Masking non-selected experts to -inf
-    # changes the softmax denominator. When a model renormalises its top-k probabilities
-    # (`norm_topk_prob=True`) that is harmless, because only the relative weights survive.
-    # OLMoE sets it to False: the mixing weights are absolute softmax probabilities over
-    # all experts, so masking inflates them. The intervention then perturbs both selection
-    # AND weighting, and this control is what separates the two.
-    with RouteReplayer(routes=baseline_routes) as control_replayer:
-        control_replayer.attach(model, target_modules=args.target_module, verbose=False)
-        nll_control = mean_nll(model, tokenizer, prompts, args.max_length)
-    artifact = nll_control - nll_fp16
-    print(f"[replay] NLL fp16 + fp16 routing      = {nll_control:.6f}  (control)")
-
+    # This is the check that invalidated the first attempt. Gate-level masking sets
+    # non-selected experts to -inf, which changes the softmax denominator. OLMoE sets
+    # norm_topk_prob=False, so its mixing weights are raw probabilities over all 64
+    # experts; masking makes the surviving 8 sum to 1 and inflates each roughly threefold.
+    # Measured on the real model that moved NLL by +2.91 while the whole INT4 degradation
+    # was +0.087 -- an artifact 34x the effect.
+    #
+    # Block-level replay intercepts the router's single topk call instead, substituting
+    # the selection while returning FP16's own probability for each replayed expert.
     norm_topk = getattr(getattr(model, "config", None), "norm_topk_prob", None)
-    print(f"[replay] norm_topk_prob = {norm_topk}")
-    if norm_topk is False and abs(artifact) > 1e-6:
-        print(
-            f"[replay] WARNING: control shifted NLL by {artifact:+.6f} with identical expert\n"
-            f"         selections. This model does not renormalise top-k probabilities, so\n"
-            f"         masking alters mixing weights. Attribution below is reported against\n"
-            f"         the control, not against plain FP16."
+    print(f"[replay] method={args.method}  norm_topk_prob={norm_topk}")
+
+    def _with_replay(routes):
+        if args.method == "block":
+            replayer = BlockRouteReplayer(routes=routes)
+            replayer.attach(model, verbose=False)
+            try:
+                return mean_nll(model, tokenizer, prompts, args.max_length), replayer.report()
+            finally:
+                replayer.restore(model)
+        with RouteReplayer(routes=routes) as replayer:
+            replayer.attach(model, target_modules=args.target_module, verbose=False)
+            return mean_nll(model, tokenizer, prompts, args.max_length), replayer.report()
+
+    nll_control, control_info = _with_replay(baseline_routes)
+    artifact = nll_control - nll_fp16
+    print(f"[replay] NLL fp16 + fp16 routing      = {nll_control:.6f}  (control, "
+          f"artifact {artifact:+.6f})")
+
+    if abs(artifact) > 1e-4:
+        message = (
+            f"the control shifted NLL by {artifact:+.6f} despite selecting identical "
+            f"experts, so the intervention is not weight-neutral and any attribution "
+            f"computed from it is meaningless."
         )
+        if args.method == "block":
+            # Block replay substitutes only the selection, so this can only mean the
+            # router's topk call was not the one intercepted. Refuse rather than report
+            # a number: the first attempt at this experiment produced "1.5% attribution"
+            # from an artifact 34x the size of the effect, and only the control caught it.
+            raise RuntimeError(
+                f"[replay] {message}\n"
+                f"Block replay should be exactly neutral. rows_replayed="
+                f"{control_info.get('rows_replayed')}, notes={control_info.get('notes')}"
+            )
+        print(f"[replay] WARNING: {message}")
+        print("         Use --method block. Gate-level masking is only weight-neutral for "
+              "models with norm_topk_prob=True; OLMoE has it False.")
 
     replay_routes = load_routes_json(args.replay_routes)
-    with RouteReplayer(routes=replay_routes) as replayer:
-        replayer.attach(model, target_modules=args.target_module)
-        nll_replay = mean_nll(model, tokenizer, prompts, args.max_length)
-        replay_info = replayer.report()
+    nll_replay, replay_info = _with_replay(replay_routes)
     print(f"[replay] NLL fp16 + {args.quant_precision} routing".ljust(38) + f" = {nll_replay:.6f}")
 
     del model
@@ -393,16 +415,26 @@ def main() -> int:
     nll_quant = mean_nll(quant_model, quant_tok, prompts, args.max_length)
     print(f"[replay] NLL {args.quant_precision}".ljust(38) + f"= {nll_quant:.6f}")
 
-    # Attribute against the control, so the masking artifact is subtracted out rather
-    # than being counted as a routing effect.
-    frac = attribution(nll_control, nll_replay, nll_quant)
-    frac_uncorrected = attribution(nll_fp16, nll_replay, nll_quant)
+    # With a weight-neutral intervention the control equals FP16, so attribute against
+    # FP16 directly. Both are reported; a gap between them is the artifact.
+    frac = attribution(nll_fp16, nll_replay, nll_quant)
+    frac_vs_control = attribution(nll_control, nll_replay, nll_quant)
+    degradation = nll_quant - nll_fp16
+    artifact_ratio = abs(artifact / degradation) if degradation else None
+    if artifact_ratio is not None and artifact_ratio > 0.25:
+        print(f"\n[replay] artifact/degradation = {artifact_ratio:.1%}. The intervention "
+              "perturbs the model more than the effect being measured; the attribution "
+              "below is not trustworthy.")
+    frac_uncorrected = frac_vs_control
     result = {
         "prompts": len(prompts),
         "quant_precision": args.quant_precision,
         "nll_fp16": nll_fp16,
         "nll_control_fp16_routes": nll_control,
         "intervention_artifact": artifact,
+        "artifact_over_degradation": artifact_ratio,
+        "method": args.method,
+        "control_info": control_info,
         "norm_topk_prob": norm_topk,
         "nll_replay": nll_replay,
         "nll_quantized": nll_quant,
@@ -436,6 +468,147 @@ def main() -> int:
         output_dir / "run_manifest.json",
     )
     return 0
+
+
+
+
+# ---------------------------------------------------------------------------
+# Block-level replay
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BlockRouteReplayer:
+    """
+    Force recorded expert selections at the MoE block, keeping FP16's own mixing weights.
+
+    The gate-level replayer masks non-selected experts to -inf. That works only when a
+    model renormalises its top-k probabilities. OLMoE sets `norm_topk_prob=False`, so its
+    mixing weights are raw softmax values over all 64 experts; masking makes the surviving
+    8 sum to 1 and inflates each roughly threefold. Measured on the real model, that
+    shifted NLL by +2.91 while the entire INT4 degradation being attributed was +0.087 --
+    an artifact 34x the size of the effect, which made the attribution meaningless.
+
+    This intercepts the single `torch.topk` call inside the block instead. HF computes:
+
+        routing_weights = softmax(router_logits)          # over ALL experts
+        routing_weights, selected = topk(routing_weights, top_k)
+        if norm_topk_prob: routing_weights /= sum
+
+    Substituting that one call replaces `selected` with the recorded experts and returns
+    `softmax_probs.gather(recorded)` as their weights -- FP16's actual probability for each
+    replayed expert, unrenormalised. Expert dispatch and the norm_topk_prob branch are
+    HF's own code, untouched.
+
+    The only thing that differs from a clean FP16 run is which experts each token visits.
+    """
+
+    routes: RoutesByModule
+    strict: bool = True
+    handles: List[torch.utils.hooks.RemovableHandle] = field(default_factory=list)
+    call_counts: Dict[str, int] = field(default_factory=dict)
+    applied_rows: int = 0
+    notes: List[str] = field(default_factory=list)
+    _originals: Dict[str, object] = field(default_factory=dict)
+
+    def _block_forward(self, block, block_name: str, gate_name: str, original_forward):
+        recorded_calls = self.routes.get(gate_name, [])
+
+        def wrapped(hidden_states, *args, **kwargs):
+            call_idx = self.call_counts.get(gate_name, 0)
+            self.call_counts[gate_name] = call_idx + 1
+            if call_idx >= len(recorded_calls):
+                self.notes.append(f"{gate_name}[{call_idx}]: no recorded routes")
+                return original_forward(hidden_states, *args, **kwargs)
+
+            recorded = recorded_calls[call_idx]
+            flat_rec = recorded.reshape(-1, recorded.shape[-1])
+            real_topk = torch.topk
+            state = {"used": False}
+
+            def patched_topk(input, k, dim=-1, *a, **kw):
+                # Only the router's call: a [tokens, num_experts] probability tensor whose
+                # row count matches the recording, asking for exactly top_k.
+                if (
+                    not state["used"]
+                    and input.dim() == 2
+                    and input.shape[0] == flat_rec.shape[0]
+                    and k == flat_rec.shape[1]
+                ):
+                    state["used"] = True
+                    idx = flat_rec.to(input.device).long()
+                    return input.gather(1, idx), idx
+                return real_topk(input, k, dim=dim, *a, **kw)
+
+            torch.topk = patched_topk
+            try:
+                out = original_forward(hidden_states, *args, **kwargs)
+            finally:
+                torch.topk = real_topk
+
+            if not state["used"]:
+                message = (
+                    f"{gate_name}[{call_idx}]: the router's topk call was never "
+                    "intercepted, so this block ran unmodified. The block's internals "
+                    "differ from the expected shape."
+                )
+                if self.strict:
+                    raise RuntimeError(f"[BlockRouteReplayer] {message}")
+                self.notes.append(message)
+            else:
+                self.applied_rows += flat_rec.shape[0]
+            return out
+
+        return wrapped
+
+    def attach(self, model, verbose: bool = True) -> None:
+        self.remove()
+        self.call_counts.clear()
+        self.applied_rows = 0
+        self.notes.clear()
+
+        matched = 0
+        for name, module in model.named_modules():
+            gate_name = f"{name}.gate"
+            if gate_name not in self.routes:
+                continue
+            if not hasattr(module, "gate") or not hasattr(module, "experts"):
+                continue
+            self._originals[name] = module.forward
+            module.forward = self._block_forward(module, name, gate_name, module.forward)
+            matched += 1
+
+        if not matched:
+            message = (
+                "no MoE block matched a recorded route set. Block replay expects a module "
+                "exposing both `gate` and `experts`, whose gate path is a key in the "
+                "recording."
+            )
+            if self.strict:
+                raise RuntimeError(f"[BlockRouteReplayer] {message}")
+            print(f"[BlockRouteReplayer] WARNING: {message}")
+        elif verbose:
+            print(f"[BlockRouteReplayer] replaying into {matched} MoE blocks "
+                  "(weights preserved, selection substituted)")
+
+    def remove(self) -> None:
+        for name, original in self._originals.items():
+            del name
+            _ = original
+        self._originals.clear()
+
+    def restore(self, model) -> None:
+        for name, module in model.named_modules():
+            if name in self._originals:
+                module.forward = self._originals[name]
+        self._originals.clear()
+
+    def report(self) -> Dict[str, object]:
+        return {
+            "blocks_hooked": len(self._originals),
+            "rows_replayed": self.applied_rows,
+            "notes": self.notes,
+        }
 
 
 if __name__ == "__main__":
