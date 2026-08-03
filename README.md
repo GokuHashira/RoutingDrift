@@ -100,9 +100,18 @@ thousand small sequential kernel launches per forward, and sub-study 3 shows
 Making RMSNorm seven times faster cannot help a model spending its time on launch
 overhead. That is also the shape of the speedup curve: 0.785x at the smallest shape where
 overhead dominates completely, rising to 1.027x at the largest where there is finally
-enough work to amortise. **The compiler limitation is the reason the kernel optimisation
-does not pay**, and the config flag that removes those breaks is the most plausible route
-to unlocking it. That experiment has not been run.
+enough work to amortise.
+
+The natural next step was to blame the compiler: if `torch.compile` fused the dispatch, the
+launches would amortise and the kernel gain would appear. **That was tested and it is
+false.** Compiling makes the model slower (0.822x), and removing every graph break with
+`capture_dynamic_output_shape_ops=True` makes it much slower still (0.327x), at a cost of
+37 to 40 minutes of compilation per shape. Sub-study 3 has the table.
+
+So the three sub-studies do connect, but not the way this section previously claimed. The
+model is launch-bound, and the compiler cannot fix that; the dispatch it generates from
+unbacked symbolic shapes is worse than the eager loop. There is no suppressed kernel gain
+waiting to be unlocked. At a 1.07x ceiling there was never much to win.
 
 
 ---
@@ -148,6 +157,72 @@ than downstream accuracy** -- which is what makes the causal question below answ
 all, and why it is answered with NLL over 119,952 token positions rather than with 500
 multiple-choice outcomes.
 
+### Does drift predict quality loss, or is it just gate noise?
+
+Three precision points give two non-trivial drift values, which cannot support a
+correlation. So the same checkpoint is swept across 15 quantization configurations, all
+derived from one FP16 checkpoint so that no second quantization algorithm enters, and each
+is scored for drift, gate KL, and NLL on the same 100 prompts.
+
+Quality is NLL rather than benchmark accuracy, and reported as the increase over the FP16
+baseline. Every configuration sees the same prompts in the same order, so prompt difficulty
+is a common term that cancels in the config-to-config differences the correlation is fitted
+on. A multiple-choice outcome has nothing to cancel: at `--lm_eval_limit 200` the standard
+error exceeds the effect being measured, as the accuracy table above shows.
+
+Thirteen of the fifteen configurations, ordered by drift:
+
+| config | jaccard drift | gate KL | dNLL vs FP16 |
+|---|---:|---:|---:|
+| int8_t3 | 0.0476 | 6.82e-04 | +0.0050 |
+| int8_t6 | 0.0488 | 7.27e-04 | +0.0031 |
+| int8_t12 | 0.0498 | 1.11e-03 | +0.0264 |
+| int8_t0 | 0.0517 | 1.43e-03 | +0.0535 |
+| nf4_L2 | 0.0626 | 1.36e-03 | +0.0168 |
+| nf4_L4 | 0.0814 | 2.48e-03 | +0.0791 |
+| nf4_L8 | 0.0978 | 3.41e-03 | +0.0835 |
+| nf4 | 0.1140 | 4.98e-03 | +0.0872 |
+| nf4_fp32c | 0.1140 | 4.97e-03 | +0.0871 |
+| nf4_dq | 0.1142 | 5.01e-03 | +0.0866 |
+| fp4 | 0.1524 | 9.20e-03 | +0.1135 |
+| fp4_dq | 0.1526 | 9.25e-03 | +0.1126 |
+
+Drift tracks quality loss strongly:
+
+| relationship | Pearson | Spearman |
+|---|---:|---:|
+| drift vs dNLL | **+0.918** | +0.937 |
+| gate KL vs dNLL | +0.882 | +0.958 |
+| drift vs gate KL | **+0.981** | |
+
+**That third row is the problem, and it is the honest headline of this sub-study.** Gate KL
+is the null hypothesis: quantization simply makes the gate noisier, and any apparent
+routing signal is that noise seen from another angle. Gate KL predicts quality loss about
+as well as drift does, and the two are 98% collinear. This correlation therefore **cannot
+establish that routing fidelity carries information beyond gate noise.** Separating them is
+what the causal intervention below is for, and why it is the load-bearing result rather
+than this table.
+
+Two side results fall out of the sweep. The layer dial is monotonic, which confirms an
+assumption the design rested on: bitsandbytes does honour `llm_int8_skip_modules` on 4-bit
+loads, so the `nf4_L*` configurations are genuinely partial rather than silent duplicates
+of full quantization.
+
+| quantized layers | 2 | 4 | 8 | all 16 |
+|---|---:|---:|---:|---:|
+| jaccard drift | 0.0626 | 0.0814 | 0.0978 | 0.1140 |
+
+And the knobs differ enormously in how much they matter. The INT8 outlier threshold barely
+registers (0.0476 to 0.0517 across t0, t3, t6, t12), and double quantization and fp32
+compute are indistinguishable from their baselines (nf4 0.1140, nf4_dq 0.1142, nf4_fp32c
+0.1140). The 4-bit data type dominates everything else: fp4 drifts 34% more than nf4
+(0.1524 against 0.1140) at identical bit width.
+
+Two configurations, `nf4_L12` and `nf4_L16`, are not in the table. A memory-retention bug
+in the sweep loop, since worked around by chunking across processes, ended the run after
+thirteen. `peak_vram_gb` in `sweep_drift.csv` is a cumulative figure for the same reason
+and should not be read as the memory a single configuration needs.
+
 ### Does routing drift actually cause the damage?
 
 Correlation cannot answer this: drift rises with quantization strength, and so does everything else. So we intervene. The FP16 model runs with full-precision weights throughout while its router is forced to select **the experts the INT4 model chose**. The only thing that differs from a clean FP16 run is which experts each token visits.
@@ -164,6 +239,55 @@ Correlation cannot answer this: drift rises with quantization strength, and so d
 The control matters. Replaying FP16's own routes into FP16 must be a no-op, and it is, to six decimals. An earlier implementation masked non-selected experts to `-inf`, which for a model with `norm_topk_prob=False` renormalises the surviving weights and inflates them; that shifted NLL by +2.91 against a real effect of +0.087, and produced a confident, meaningless attribution. The intervention now substitutes the selection inside the MoE block and leaves the mixing weights alone.
 
 So: reroute nearly half of all tokens and almost nothing happens. **MoE experts are substitutable enough that routing fidelity, while measurable and monotonic in quantization strength, is close to inconsequential for output quality.**
+
+### Does this generalise past OLMoE?
+
+Three architectures, same prompts, same precisions, same pipeline:
+
+| | routed experts | top-k | shared | `norm_topk_prob` |
+|---|---:|---:|---:|---|
+| OLMoE-1B-7B | 64 | 8 | 0 | false |
+| DeepSeek-V2-Lite | 64 | 6 | 2 | n/a |
+| Qwen3-30B-A3B-Base | 128 | 8 | 0 | true |
+
+**Raw jaccard drift is not comparable across models with different top-k, and reading it
+that way inverts the answer.** One swapped expert produces a drift of `2/(k+1)`: 0.222 at
+top-8, 0.286 at top-6. The identical physical event registers 29% larger at DeepSeek's k,
+purely from set arithmetic.
+
+The comparable quantity is expected swapped experts per token, `k * selection_shift`, which
+carries no k:
+
+| model | precision | jaccard drift | swaps/token | 95% CI |
+|---|---|---:|---:|---|
+| OLMoE | INT8 | 0.0488 | 0.2214 | [0.2160, 0.2273] |
+| DeepSeek-V2-Lite | INT8 | 0.0419 | 0.1475 | [0.1429, 0.1529] |
+| Qwen3-30B-A3B | INT8 | 0.0690 | 0.3171 | [0.3063, 0.3290] |
+| OLMoE | INT4 | 0.1142 | 0.5281 | [0.5189, 0.5384] |
+| DeepSeek-V2-Lite | INT4 | 0.1303 | 0.4686 | [0.4565, 0.4830] |
+| Qwen3-30B-A3B | INT4 | 0.1657 | 0.7961 | [0.7792, 0.8150] |
+
+All three are mutually disjoint at both precisions. Two things follow.
+
+**Drift under quantization is universal, not an OLMoE artifact.** Every architecture drifts,
+monotonically in quantization strength, with the same ordering.
+
+**Finer granularity drifts more.** Qwen routes to 8 of 128 and changes 0.80 experts per
+token under INT4, against OLMoE's 0.53 from 8 of 64. More experts means more near-ties for
+quantization error to flip. This is the granularity axis the third model was chosen for.
+
+And on raw jaccard, DeepSeek looks worse than OLMoE at INT4 (0.1303 against 0.1142) while
+actually swapping fewer experts (0.469 against 0.528). The raw ordering is a k artifact.
+
+**One confound must travel with this table.** The gates are not quantized alike. OLMoE's
+`mlp.gate` is an `nn.Linear`, so bitsandbytes replaces it and the router weights are
+themselves quantized. DeepSeek's `MoEGate` holds a raw `nn.Parameter`, which bitsandbytes
+does not touch, so its router stays FP16 while all 5,181 expert and attention Linears are
+quantized. DeepSeek's drift is therefore upstream hidden-state perturbation alone, where
+OLMoE's is that plus direct gate-weight error. That is a plausible mechanism for DeepSeek
+drifting least, and it is not separable here from layer count, hidden size, shared experts,
+or training data. The untested experiment that would settle it: quantize DeepSeek's gate by
+hand and see whether its advantage disappears.
 
 ### One more finding, about reproducibility
 
@@ -194,7 +318,22 @@ The expert dispatch calls `torch.nonzero` to find which tokens routed to each ex
 
 Every break disappears. So MoE routing does not *structurally* prevent compilation; it defeats the default configuration, and a one-line change traces it with an unbacked symbolic size instead.
 
-**Caveat, and it matters:** zero breaks is not the same as faster. Unbacked symbolic shapes can generate worse code than an eager fallback. This is a result about compilability, not speed, until someone measures latency both ways.
+**And removing them makes it three times slower.** The obvious next question is whether zero breaks buys any speed. It does not. Five configurations timed at identical shapes on one A100, eager as the reference:
+
+| config | 512x4 | 1024x4 | graph breaks | compile time |
+|---|---:|---:|---:|---:|
+| eager | 1.000x | 1.000x | 0 | |
+| eager + Triton kernels | 0.979x | 1.033x | 0 | |
+| `torch.compile`, default | 0.822x | 0.878x | 19 | 30 to 60 s |
+| `torch.compile` + dynamic capture | **0.613x** | **0.327x** | **0** | **37 to 40 min** |
+
+Compiling at all is a loss: 0.82x with the dispatch still running eager. Removing every graph break is a much larger loss, 0.33x at the longer shape, and it costs 37 to 40 minutes of compilation per shape rather than the 30 to 60 seconds the default path needs.
+
+So the readable conclusion is the opposite of the intuitive one. Unbacked symbolic shapes let Inductor trace the dispatch, and the code it then generates is far worse than the eager fallback it replaced. **Zero graph breaks is not a proxy for speed, and a graph-break count is not a performance metric.** For MoE inference specifically, the eager dispatch is not the thing holding the model back, which is consistent with the kernel sub-study above: at a 1.07x Amdahl ceiling there was never much for the compiler to win.
+
+This also revises what the kernel result means. The Triton kernels deliver 0.979x to 1.033x, and the earlier reading was that the compiler's graph breaks were suppressing a real gain. They were not. The gain is simply not there to unlock.
+
+One measurement note: the graph-break counts above are cumulative within a configuration rather than per shape, so the default path's 19 and 36 are the same 19 breaks counted once and then again. The contrast that matters, 19 against 0, is unaffected.
 
 Two measurement notes. `cache_size_limit` must be raised above its default of 8, or dynamo stops tracing partway through a 16-layer model, because every layer recompiles on `self_attn.layer_idx`; at the default this run reported 15 breaks instead of 23. And subgraph sizes range from 4 to 77 nodes, so the previously reported "50% compiled" figure, computed as `1/(breaks+1)`, assumed equal-sized subgraphs and is not meaningful.
 
@@ -389,7 +528,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 1. **The kernels are integration-bound, not Amdahl-bound.** Measured by module, RMSNorm is **7.70%** of the forward pass, giving a **1.07x** ceiling rather than the 1.015x previously claimed. End to end on the same machine and shape, the kernels deliver **0.999x**: essentially none of the available gain.
 
-2. **Because the model is launch-bound, and that is the compiler's fault.** 128 tokens take 246.8 ms, 4096 tokens take 383.4 ms: 32x the work for 1.55x the time. The expert dispatch is a Python loop over 64 experts across 16 layers, ~1000 sequential kernel launches per forward, which `torch.compile` will not fuse because of the 23 graph breaks in finding 5. A faster RMSNorm cannot help a model that is waiting on launches. **The three sub-studies are not independent: the compiler limitation explains the kernel result.**
+2. **The model is launch-bound, but the compiler is not the cure.** 128 tokens take 246.8 ms, 4096 tokens take 383.4 ms: 32x the work for 1.55x the time. The expert dispatch is a Python loop over 64 experts across 16 layers, roughly 1000 sequential kernel launches per forward. The obvious inference was that `torch.compile` fails to fuse this because of the graph breaks in finding 6, and that removing them would recover the kernel gain. **That inference was tested and is wrong.** Compiling is 0.82x, and removing every graph break is 0.33x. See finding 6.
 
 3. **A correct kernel can still be catastrophic to integrate.** On Mixtral-GPTQ the patched model ran 17x to 59x slower, and profiling shows 74.8% of runtime in host-device memory copies: monkey-patching modules inside the auto-gptq/accelerate runtime broke its device-placement hooks. The kernel never touched the packed INT4 weights. The failure was integration, not arithmetic.
 
@@ -397,19 +536,28 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 5. **And it barely matters.** Forcing the FP16 model to use INT4's expert selections, with full-precision weights throughout and a control verified neutral to six decimals, reproduces **2.7%** of INT4's degradation. The other 97% is quantization error inside the expert weights. MoE experts are substitutable enough that routing fidelity is measurable, monotonic in quantization strength, and close to inconsequential for output quality.
 
-6. **The `torch.compile` limitation is a default, not a law.** The real model produces 23 graph breaks, 16 of them at a single `torch.nonzero` in the expert dispatch. Setting `torch._dynamo.config.capture_dynamic_output_shape_ops=True` removes all 23. Whether that is *faster* is unmeasured; unbacked symbolic shapes can generate worse code than an eager fallback.
+6. **Zero graph breaks is not a proxy for speed.** The real model produces 23 graph breaks, 16 of them at a single `torch.nonzero` in the expert dispatch, and `torch._dynamo.config.capture_dynamic_output_shape_ops=True` removes all of them. It also makes the model **3x slower** (0.327x at seq 1024 batch 4) and raises compilation from under a minute to 37 to 40 minutes per shape. Plain `torch.compile` is already a loss at 0.82x. Unbacked symbolic shapes let Inductor trace the dispatch and then generate far worse code than the eager fallback it replaced. **A graph-break count is not a performance metric.**
 
-7. **Quantized routing is not reproducible across environments.** The same checkpoint on two A100 setups gave INT4 drift of 0.0667 and 0.1254 while FP16 routes agreed to 2 rows in 864. Anyone comparing MoE quantization results across papers should record their bitsandbytes version.
+7. **Drift generalises across architectures, and finer granularity drifts more.** Corrected for top-k, INT4 changes 0.80 experts per token on Qwen3-30B-A3B (8 of 128), 0.53 on OLMoE (8 of 64), and 0.47 on DeepSeek-V2-Lite (6 of 64), all mutually disjoint at 95%. Raw jaccard drift inverts the OLMoE/DeepSeek ordering, because one swapped expert registers as `2/(k+1)` and so counts 29% larger at top-6 than at top-8.
+
+8. **Drift predicts quality loss, but so does gate KL, and they are 98% collinear.** Across 13 quantization configurations, drift correlates with NLL increase at Pearson +0.918, gate KL at +0.882, and the two predictors with each other at **+0.981**. The correlation alone therefore cannot show that routing fidelity carries information beyond "the gate got noisier." Only the causal intervention in finding 5 separates them.
+
+9. **The 4-bit data type dominates every other quantization knob.** fp4 drifts 34% more than nf4 at identical bit width (0.1524 against 0.1140), while the INT8 outlier threshold spans only 0.0476 to 0.0517 and double quantization and fp32 compute are indistinguishable from their baselines.
+
+10. **Quantized routing is not reproducible across environments.** The same checkpoint on two A100 setups gave INT4 drift of 0.0667 and 0.1254 while FP16 routes agreed to 2 rows in 864. Anyone comparing MoE quantization results across papers should record their bitsandbytes version.
 
 ## Known Limitations
 
 - **Accuracy differences are below noise.** At `--lm_eval_limit 500` the largest INT4 drop is about 0.8 sigma. The drift-to-quality *correlation* therefore rests on differences that cannot be resolved at this evaluation budget; the causal replay result does not, since NLL over 119,952 token positions has far lower variance than 500 multiple-choice outcomes.
-- **Two distinct drift values.** Three precisions give two non-trivial points, and any two points lie on a line. The correlation reported is a direction, not a result.
+- **The correlation rests on 13 configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
 - **One model for the causal claim.** Replay has run on OLMoE only.
-- **No error bars on drift.** Single prompt set, no seed sweep, no bootstrap.
-- **The launch-bound explanation is inferred, not directly measured.** The flat latency curve and the graph-break count are both measured; that removing the breaks would recover the kernel gain is a hypothesis. Running the benchmark with `capture_dynamic_output_shape_ops=True` would test it and has not been done.
+- **Drift and gate KL cannot be separated by correlation.** They are 98% collinear across the sweep, so the sweep establishes that drift tracks quality loss and not that it explains anything gate noise does not. The causal replay is the only evidence that distinguishes them, and it has run on one model.
+- **Quality is measured for one of three models.** The sweep supplies NLL for OLMoE. DeepSeek and Qwen have drift with no quality metric, so the drift-to-quality relationship is untested outside OLMoE.
+- **The cross-model comparison has an uncontrolled confound.** OLMoE's router is quantized and DeepSeek's is not, because one is an `nn.Linear` and the other an `nn.Parameter`. Layer count, hidden size, shared-expert count and training data also differ. The top-k correction removes one confound, not these.
+- **Two sweep configurations are missing.** `nf4_L12` and `nf4_L16` were lost to a memory-retention bug, so the layer dial is resolved at 2, 4, 8 and 16 layers but not 12.
+- **Compiler timings share one attention backend that the other benchmarks do not.** cuDNN SDPA is disabled throughout `compile_benchmark`, because Inductor's tensor layouts make it fail. Numbers there are internally consistent but not directly comparable to `benchmark_olmoe.csv`.
 - **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
-- **Compiler latency is unmeasured.** The graph-break counts are real; the claim that removing them helps is not made.
+- **`peak_vram_gb` in `sweep_drift.csv` is cumulative, not per configuration.** The sweep loop retains every model it loads, so the column is a running total and understates nothing but overstates each configuration's own footprint by everything before it.
 
 ## Team
 
