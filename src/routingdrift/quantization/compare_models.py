@@ -68,6 +68,21 @@ def _read_summary(results_dir: Path) -> Dict[str, dict]:
         return {row["variant"]: row for row in csv.DictReader(f)}
 
 
+def _read_ci(results_dir: Path) -> Dict[str, dict]:
+    """
+    Load drift_bootstrap_ci.csv keyed by variant, if bootstrap.py has been run.
+
+    Optional on purpose. The point estimates are always available; intervals require a
+    separate several-minute pass over the route dumps. Without them the table still
+    prints, but it cannot say whether a cross-model gap is real, and it says so.
+    """
+    path = results_dir / "drift_bootstrap_ci.csv"
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        return {row["variant"]: row for row in csv.DictReader(f)}
+
+
 def swapped_experts(selection_shift: float, top_k: int) -> float:
     """
     Expected number of experts that changed, per token.
@@ -111,11 +126,12 @@ def main() -> int:
     rows: List[dict] = []
     for name, directory, top_k in runs:
         summary = _read_summary(directory)
+        cis = _read_ci(directory)
         for variant, row in summary.items():
             if variant == "fp16":
                 continue
             shift = float(row["selection_shift"])
-            rows.append({
+            entry = {
                 "model": name,
                 "top_k": top_k,
                 "variant": variant,
@@ -123,7 +139,18 @@ def main() -> int:
                 "selection_shift": round(shift, 6),
                 "swapped_experts_per_token": round(swapped_experts(shift, top_k), 6),
                 "jaccard_per_single_swap": round(jaccard_for_one_swap(top_k), 6),
-            })
+                "swaps_ci_low": "",
+                "swaps_ci_high": "",
+            }
+            ci = cis.get(variant)
+            if ci:
+                # swaps/tok is k * selection_shift with k a constant, so the interval
+                # scales linearly. No re-resampling needed.
+                entry["swaps_ci_low"] = round(
+                    swapped_experts(float(ci["selection_shift_ci_low"]), top_k), 6)
+                entry["swaps_ci_high"] = round(
+                    swapped_experts(float(ci["selection_shift_ci_high"]), top_k), 6)
+            rows.append(entry)
 
     print("=" * 78)
     print("CROSS-MODEL DRIFT, CORRECTED FOR top-k")
@@ -134,16 +161,19 @@ def main() -> int:
         print(f"    {name:<12} top-{top_k}  ->  jaccard drift {jaccard_for_one_swap(top_k):.4f}")
     print("\nUse swapped_experts_per_token, which carries no k.\n")
 
-    header = f"{'model':<12} {'variant':<8} {'k':>3} {'jaccard':>9} {'sel.shift':>10} {'swaps/tok':>10}"
+    header = (f"{'model':<12} {'variant':<8} {'k':>3} {'jaccard':>9} {'sel.shift':>10} "
+              f"{'swaps/tok':>10} {'95% CI':>20}")
     print(header)
     print("-" * len(header))
     for r in rows:
+        ci = ("" if r["swaps_ci_low"] == ""
+              else f"[{r['swaps_ci_low']:.4f}, {r['swaps_ci_high']:.4f}]")
         print(f"{r['model']:<12} {r['variant']:<8} {r['top_k']:>3} "
               f"{r['jaccard_drift']:>9.4f} {r['selection_shift']:>10.4f} "
-              f"{r['swapped_experts_per_token']:>10.4f}")
+              f"{r['swapped_experts_per_token']:>10.4f} {ci:>20}")
 
     # Where the correction changes the conclusion, say so explicitly rather than leaving
-    # it for a reader to notice.
+    # it for a reader to notice -- and only call a gap real if the intervals allow it.
     by_variant: Dict[str, List[dict]] = {}
     for r in rows:
         by_variant.setdefault(r["variant"], []).append(r)
@@ -158,8 +188,25 @@ def main() -> int:
             print(f"           top-k it is {corrected['model']}. The raw ordering is a")
             print(f"           k artifact. Report swaps/tok.")
         else:
-            print(f"  {variant}: {raw['model']} ranks worst on both raw and corrected. The")
-            print(f"           ordering survives the k correction.")
+            print(f"  {variant}: {raw['model']} ranks worst on both raw and corrected;")
+            print(f"           the ordering survives the k correction.")
+
+        # A reversal is only worth reporting if the corrected intervals are disjoint.
+        # Two point estimates crossing over proves nothing on its own.
+        if all(r["swaps_ci_low"] != "" for r in group):
+            ordered = sorted(group, key=lambda r: r["swapped_experts_per_token"])
+            lo, hi = ordered[0], ordered[-1]
+            if lo["swaps_ci_high"] < hi["swaps_ci_low"]:
+                print(f"           CIs disjoint: {lo['model']} genuinely swaps fewer "
+                      f"experts per token.")
+            else:
+                print(f"           CIs OVERLAP ({lo['model']} up to {lo['swaps_ci_high']:.4f}, "
+                      f"{hi['model']} from {hi['swaps_ci_low']:.4f}).")
+                print(f"           The gap is not resolved by 100 prompts. Do not claim a "
+                      f"winner.")
+        else:
+            print(f"           No intervals: run bootstrap.py in both result dirs before")
+            print(f"           claiming either ordering is real.")
 
     if args.out:
         out = Path(args.out)
