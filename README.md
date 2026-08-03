@@ -1,16 +1,52 @@
-# Routing Fidelity as a Systems Metric: Characterizing Optimization-Induced Drift in MoE
+# Launch-Bound and Substitutable: Why Three MoE Inference Optimizations Don't Pay
 
-**MSML 605 Final Project · University of Maryland**
+**University of Maryland** · MSML 605 project, extended for publication
 
 ---
 
 ## What is this?
 
-Mixture-of-Experts (MoE) models like OLMoE and Mixtral work by routing each token to a small subset of specialized "expert" sub-networks instead of running everything through one big dense network. That makes them much more parameter-efficient at inference time, but it also makes them surprisingly painful to optimize.
+Mixture-of-Experts (MoE) models route each token to a small subset of specialized expert
+sub-networks instead of running everything through one dense network. That makes them
+parameter-efficient at inference and awkward to optimize, because the routing decision is
+dynamic and data-dependent: custom kernels expect fixed shapes, quantization assumes small
+weight perturbations produce small output changes, and `torch.compile` wants a static graph.
 
-The routing decision is dynamic and data-dependent, which breaks a lot of the tools you'd normally reach for. `torch.compile` trips over the routing logic and can't fuse key ops. Quantizing the weights shifts the routing distribution in ways that may or may not hurt accuracy. And custom kernels can interact badly with quantized weight formats.
+We measured what three standard optimizations actually do to MoE inference: hand-written
+Triton kernels, weight quantization, and graph compilation. **None of them pay**, and the
+reasons are more interesting than the fact.
 
-This project looks at all three of those problems together. We picked two real MoE models, **OLMoE-1B-7B** (64 experts, top-8 routing, 16 layers) and **Mixtral-8x7B-GPTQ** (8 experts, top-2 routing), and ran three independent but complementary sub-studies on an A100 GPU on the Zaratan HPC cluster at UMD.
+Two mechanisms account for all three results:
+
+- **The model is launch-bound.** 128 tokens take 246.8 ms and 4096 tokens take 383.4 ms:
+  32x the work for 1.55x the time. The expert dispatch is a Python loop over 64 experts in
+  each of 16 layers, roughly a thousand small sequential kernel launches per forward. A
+  seven-times-faster RMSNorm cannot help a model that is waiting on launches, which is why
+  the kernels deliver **0.999x** against a measured 1.07x ceiling. And the compiler cannot
+  fix it: compiling is **0.822x**, and removing every graph break is **0.327x**.
+- **MoE experts are substitutable.** Quantizing to INT4 changes at least one of eight
+  experts for **46% of token positions**, which sounds severe. Force the full-precision
+  model to follow those changed routes and only **2.7%** of INT4's quality loss is
+  reproduced. The rest is error inside the expert weights, not the routing.
+
+A third result ties them together and is the one we did not expect. Leaving the routers in
+FP16 while quantizing everything else **reduces routing drift by 20% and makes the model
+worse**. Routing fidelity and output quality move in opposite directions, so they are
+separable rather than weakly related.
+
+**Why the earlier version of this study concluded the opposite.** Each sub-study's headline
+number was a measurement artefact, and correcting it reversed the conclusion it supported:
+
+| sub-study | the number | the artefact | conclusion before, and after |
+|---|---|---|---|
+| Kernels | RMSNorm at 1.94% of runtime | matched CUDA kernel names; missed the variance reduction, and QK-norm gives each layer four RMSNorm modules, 65 total | Amdahl-bound, so nothing to gain -> **integration-bound**: 0.999x against a real 1.07x |
+| Quantization | INT4 preserves 93.3% of expert selections | logged the top-2 of a top-8 router, where margins are widest and flips are rarest | routing is stable under quantization -> **routing shifts substantially, and it does not matter** |
+| Compiler | 1 graph break; routing is 78.8% of runtime | 2-layer randomly-initialised stubs at hidden 512, where expert matmuls are microscopic | a structural ceiling waiting to be lifted -> **23 breaks, and lifting them is 3x slower** |
+
+Three models, all text-only with clean FP16 baselines: **OLMoE-1B-7B** (64 experts, top-8),
+**DeepSeek-V2-Lite** (64 routed plus 2 shared, top-6), and **Qwen3-30B-A3B** (128 experts,
+top-8). Every number below recomputes from raw per-token route dumps with no GPU and no
+third-party packages: run `make verify`.
 
 ---
 
@@ -674,6 +710,18 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Key Findings
 
+Ordered so the two mechanisms come first, since they explain the rest.
+
+0. **The model is launch-bound, and no optimization here changes that.** 128 tokens take
+   246.8 ms, 4096 take 383.4 ms: 32x the work for 1.55x the time. Roughly a thousand small
+   sequential kernel launches per forward, from a Python loop over 64 experts across 16
+   layers. This is why findings 1, 2 and 6 all come out negative.
+
+0b. **MoE experts are substitutable, so routing fidelity is a weak explanation.** Rerouting
+   46% of token positions reproduces 2.7% of INT4's quality loss. And the router-exemption
+   control moves drift and quality in *opposite* directions, which is stronger evidence than
+   the attribution: reducing drift by 20% made the model worse.
+
 1. **The kernels are integration-bound, not Amdahl-bound.** Measured by module, RMSNorm is **7.70%** of the forward pass, giving a **1.07x** ceiling rather than the 1.015x previously claimed. End to end on the same machine and shape, the kernels deliver **0.999x**: essentially none of the available gain.
 
 2. **The model is launch-bound, but the compiler is not the cure.** 128 tokens take 246.8 ms, 4096 tokens take 383.4 ms: 32x the work for 1.55x the time. The expert dispatch is a Python loop over 64 experts across 16 layers, roughly 1000 sequential kernel launches per forward. The obvious inference was that `torch.compile` fails to fuse this because of the graph breaks in finding 6, and that removing them would recover the kernel gain. **That inference was tested and is wrong.** Compiling is 0.82x, and removing every graph break is 0.33x. See finding 6.
@@ -709,13 +757,40 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Team
 
+**Original course project** (MSML 605, three sub-studies run on Zaratan):
+
 | Person | Role |
 |--------|------|
-| Gokul  | Triton kernel engineering (RMSNorm + Softmax), HPC runs on Zaratan |
-| Amogh  | Compiler: graph break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
+| Gokul  | Triton kernel engineering (RMSNorm + router Softmax), Amdahl analysis, HPC runs on Zaratan |
+| Amogh  | Compiler: graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
 | Giri   | Quantization: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
 
-*MSML 605 · University of Maryland · Spring 2026*
+**Extension for publication** (the results in this README): **Gokul**.
+
+Triton kernels and their re-measurement, plus the implementation and execution of everything
+added since the course project:
+
+- the 17-configuration quantization sweep (`quantization/sweep.py`, `quantization/quant_configs.py`)
+- the causal route-replay intervention and its control (`quantization/route_replay.py`)
+- the router-exemption controls that decompose drift into gate and upstream components
+- cross-architecture measurement on DeepSeek-V2-Lite and Qwen3-30B-A3B, and the top-k
+  correction that makes those numbers comparable (`quantization/compare_models.py`)
+- prompt-resampled bootstrap intervals (`quantization/bootstrap.py`)
+- the corrected op-fraction profiling and the five-configuration compile benchmark
+  (`kernels/profile_ops.py`, `kernels/compile_benchmark.py`)
+- graph-break analysis on the real checkpoint, replacing the 2-layer stubs
+  (`compiler/real_model_breaks.py`)
+- the reproducibility layer: provenance manifests, run logging, seeded determinism checks,
+  the output write-guard, and recomputation of every published metric from raw route dumps
+  (`quantization/repro.py`, `quantization/verify_reproducibility.py`, `output_guard.py`)
+- the Modal execution pipeline that runs each stage reproducibly on an A100 (`modal_app.py`)
+- the figures (`reporting/paper_figures.py`) and this README
+
+The extension re-measured all three original sub-studies, which changed several of their
+headline numbers; the corrections and their causes are documented in the table at the top of
+this README rather than applied silently.
+
+*University of Maryland*
 
 ## License
 

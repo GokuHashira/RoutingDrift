@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "routingdrift"
 version = "0.2.0"
-description = "Routing fidelity as a systems metric: characterizing optimization-induced drift in Mixture-of-Experts LLMs"
+description = "Launch-bound and substitutable: why three MoE inference optimizations do not pay"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
