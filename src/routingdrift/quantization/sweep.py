@@ -62,6 +62,7 @@ from routingdrift.quantization.repro import (
     set_global_seed,
     start_run_log,
 )
+from routingdrift.quantization.route_replay import mean_nll
 from routingdrift.quantization.routing_logger import (
     collect_routes_and_probs,
     mean_gate_kl,
@@ -210,6 +211,20 @@ def run_sweep(args: argparse.Namespace) -> int:
         )
         save_routes_json(routes, output_dir / f"routes_{spec.name}.json")  # -> .json.gz
 
+        # Quality, measured as NLL on the same prompts, while the model is still resident.
+        #
+        # Why not task accuracy: at --lm_eval_limit 200 the standard error on these tasks
+        # is around 0.03 to 0.045 while the accuracy drops being measured are 0.01 to
+        # 0.02, so a fifteen-config correlation would be fitting a line through noise. NLL
+        # over ~120,000 token positions resolves differences that 200 multiple-choice
+        # outcomes cannot, costs one forward pass instead of a reload plus an eval, and is
+        # the same metric the causal replay uses, so the correlation and the intervention
+        # are directly comparable.
+        nll = None
+        if args.quality in ("nll", "both"):
+            nll = mean_nll(model, tokenizer, prompts, args.max_length)
+            print(f"[sweep] {spec.name}: NLL={nll:.6f}")
+
         elapsed = time.time() - started
         vram = peak_vram_gb()
         del model, tokenizer
@@ -240,6 +255,7 @@ def run_sweep(args: argparse.Namespace) -> int:
             "overlap_at_k": round(metrics["overlap_at_k"], 6),
             "selection_shift": round(metrics["selection_shift"], 6),
             "gate_kl": round(kl, 8),
+            "nll": "" if nll is None else round(nll, 6),
             "quant_audit": quant_audit,
             "peak_vram_gb": round(vram, 2),
             "seconds": round(elapsed, 1),
@@ -285,6 +301,58 @@ def run_sweep(args: argparse.Namespace) -> int:
                                if r["config"] not in {d["config"] for d in drift_rows}]
     save_rows_csv(drift_rows, output_dir / "sweep_drift.csv")
     print(f"\n[Saved] {output_dir / 'sweep_drift.csv'}  ({len(drift_rows)} configs)")
+
+    if args.quality in ("nll", "both"):
+        nll_rows = [r for r in drift_rows if r.get("nll") not in ("", None)]
+        base = next((r for r in nll_rows if r["config"] == "fp16"), None)
+        if base and len(nll_rows) >= 3:
+            points = [
+                {
+                    "config": r["config"],
+                    "lever": r["lever"],
+                    "jaccard_drift": float(r["jaccard_drift"]),
+                    "gate_kl": float(r["gate_kl"]),
+                    "nll": float(r["nll"]),
+                    "nll_delta": float(r["nll"]) - float(base["nll"]),
+                }
+                for r in nll_rows if r["config"] != "fp16"
+            ]
+            save_rows_csv(points, output_dir / "sweep_drift_vs_nll.csv")
+
+            corr = []
+            drops = [p["nll_delta"] for p in points]
+            for predictor in ("jaccard_drift", "gate_kl"):
+                xs = [p[predictor] for p in points]
+                corr.append({
+                    "predictor": predictor,
+                    "n_points": len(points),
+                    "pearson": _pearson_corr(xs, drops),
+                    "spearman": _spearman_corr(xs, drops),
+                })
+            # Are the two predictors distinguishable at all? If drift and gate noise are
+            # collinear, a correlation with either says nothing about which one matters.
+            corr.append({
+                "predictor": "drift~gate_kl (collinearity)",
+                "n_points": len(points),
+                "pearson": _pearson_corr([p["jaccard_drift"] for p in points],
+                                         [p["gate_kl"] for p in points]),
+                "spearman": _spearman_corr([p["jaccard_drift"] for p in points],
+                                           [p["gate_kl"] for p in points]),
+            })
+            save_rows_csv(corr, output_dir / "sweep_nll_correlations.csv")
+
+            print(f"\n{'predictor':<30} {'n':>3} {'pearson':>9} {'spearman':>9}")
+            print("-" * 55)
+            for row in corr:
+                pe = f"{row['pearson']:.4f}" if isinstance(row["pearson"], float) else "-"
+                sp = f"{row['spearman']:.4f}" if isinstance(row["spearman"], float) else "-"
+                print(f"{row['predictor']:<30} {row['n_points']:>3} {pe:>9} {sp:>9}")
+            print(
+                "\nRead alongside the replay result. A strong drift-NLL correlation next to"
+                "\na small causal attribution is the point: the metric predicts well and"
+                "\ncauses little. If the collinearity row is near 1.0, drift and gate noise"
+                "\ncannot be told apart here and neither correlation identifies a mechanism."
+            )
 
     if eval_rows:
         save_rows_csv(eval_rows, output_dir / "sweep_lm_eval.csv")
@@ -387,6 +455,13 @@ def main() -> int:
         "--resume",
         action="store_true",
         help="Reuse route dumps already in --output_dir. For restarts after preemption.",
+    )
+    ap.add_argument(
+        "--quality", default="nll", choices=["nll", "lm_eval", "both"],
+        help="How to measure quality per config. nll: one extra forward pass over the "
+             "same prompts, ~120k token positions, sensitive enough to resolve these "
+             "differences. lm_eval: task accuracy, whose standard error at practical "
+             "limits exceeds the effect size.",
     )
     ap.add_argument("--run_lm_eval", action="store_true")
     ap.add_argument("--lm_eval_tasks", nargs="+", default=["mmlu", "gsm8k", "hellaswag"])

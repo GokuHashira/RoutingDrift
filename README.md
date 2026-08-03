@@ -75,15 +75,34 @@ keyword matcher was never going to find them all.
 With the measured fraction, Amdahl's ceiling is **1.07x**, not the 1.015x previously
 claimed.
 
-**Bottom line, and it is now less settled than it was.** The recorded end-to-end result is
-**0.985x** at seq=512, batch=4, which is the same shape the fractions were profiled at.
-Against a 1.07x ceiling that leaves roughly eight points of headroom the integration is
-not capturing, a different conclusion from "Amdahl-bound, nothing to gain". The gap is not
-yet established, because the two numbers come from different machines and software stacks:
-INT4 drift already differed twofold between those same two environments, so timing cannot
-be assumed to carry over. An end-to-end re-measurement on the profiling machine settles
-it. If the gap holds, the lesson is the one the Mixtral result teaches in a louder voice,
-that integration overhead rather than kernel quality governs whether a fast kernel helps.
+End to end, on the same machine and the same shapes:
+
+| seq_len | batch | baseline p50 | kernels p50 | speedup |
+|--------:|------:|-------------:|------------:|--------:|
+| 128  | 1 | 246.8 ms | 314.5 ms | **0.785x** |
+| 128  | 4 | 329.1 ms | 331.0 ms | 0.994x |
+| 512  | 1 | 319.8 ms | 322.0 ms | 0.993x |
+| 512  | 4 | 342.5 ms | 342.7 ms | **0.999x** |
+| 1024 | 1 | 337.6 ms | 339.5 ms | 0.994x |
+| 1024 | 4 | 383.4 ms | 373.4 ms | **1.027x** |
+
+At seq=512 batch=4, where the op fractions were measured, the kernels deliver **0.999x**
+against a **1.07x** ceiling. They capture essentially none of the available gain. The
+sub-study's conclusion is therefore not "Amdahl-bound" but **integration-bound**.
+
+**Why, and it ties the three sub-studies together.** Look at the absolute latencies: 128
+tokens take 246.8 ms and 4096 tokens take 383.4 ms. Thirty-two times the work for 1.55x
+the time. The model is not compute-bound at these sizes, it is **launch-bound**: the
+expert dispatch is a Python loop over 64 experts in each of 16 layers, on the order of a
+thousand small sequential kernel launches per forward, and sub-study 3 shows
+`torch.compile` declines to fuse any of it because of 23 graph breaks at `torch.nonzero`.
+
+Making RMSNorm seven times faster cannot help a model spending its time on launch
+overhead. That is also the shape of the speedup curve: 0.785x at the smallest shape where
+overhead dominates completely, rising to 1.027x at the largest where there is finally
+enough work to amortise. **The compiler limitation is the reason the kernel optimisation
+does not pay**, and the config flag that removes those breaks is the most plausible route
+to unlocking it. That experiment has not been run.
 
 
 ---
@@ -368,17 +387,19 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Key Findings
 
-1. **The Amdahl ceiling is higher than reported, and the kernels are not reaching it.** Fused RMSNorm reaches 5.6x to 9.0x in isolation. Measured by module rather than by kernel-name matching, RMSNorm is **7.70%** of the forward pass and the router softmax 0.17%, giving a ceiling of **1.07x** rather than the 1.015x previously claimed. Recorded end-to-end is 0.985x. The gap is not yet established, since those two numbers come from different hardware and shapes, but if it holds the limit is integration overhead rather than Amdahl.
+1. **The kernels are integration-bound, not Amdahl-bound.** Measured by module, RMSNorm is **7.70%** of the forward pass, giving a **1.07x** ceiling rather than the 1.015x previously claimed. End to end on the same machine and shape, the kernels deliver **0.999x**: essentially none of the available gain.
 
-2. **A correct kernel can still be catastrophic to integrate.** On Mixtral-GPTQ the patched model ran 17x to 59x slower, and profiling shows 74.8% of runtime in host-device memory copies: monkey-patching modules inside the auto-gptq/accelerate runtime broke its device-placement hooks. The kernel never touched the packed INT4 weights. The failure was integration, not arithmetic.
+2. **Because the model is launch-bound, and that is the compiler's fault.** 128 tokens take 246.8 ms, 4096 tokens take 383.4 ms: 32x the work for 1.55x the time. The expert dispatch is a Python loop over 64 experts across 16 layers, ~1000 sequential kernel launches per forward, which `torch.compile` will not fuse because of the 23 graph breaks in finding 5. A faster RMSNorm cannot help a model that is waiting on launches. **The three sub-studies are not independent: the compiler limitation explains the kernel result.**
 
-3. **Quantization changes routing substantially.** At OLMoE's native top-8, INT4 changes at least one expert for 46% of token positions, INT8 for 21%. Per slot that is 6.6% and 2.8% of selections respectively.
+3. **A correct kernel can still be catastrophic to integrate.** On Mixtral-GPTQ the patched model ran 17x to 59x slower, and profiling shows 74.8% of runtime in host-device memory copies: monkey-patching modules inside the auto-gptq/accelerate runtime broke its device-placement hooks. The kernel never touched the packed INT4 weights. The failure was integration, not arithmetic.
 
-4. **And it barely matters.** Forcing the FP16 model to use INT4's expert selections, with full-precision weights throughout and a control verified neutral to six decimals, reproduces **2.7%** of INT4's degradation. The other 97% is quantization error inside the expert weights. MoE experts are substitutable enough that routing fidelity is measurable, monotonic in quantization strength, and close to inconsequential for output quality.
+4. **Quantization changes routing substantially.** At OLMoE's native top-8, INT4 changes at least one expert for 46% of token positions, INT8 for 21%. Per slot that is 6.6% and 2.8% of selections respectively.
 
-5. **The `torch.compile` limitation is a default, not a law.** The real model produces 23 graph breaks, 16 of them at a single `torch.nonzero` in the expert dispatch. Setting `torch._dynamo.config.capture_dynamic_output_shape_ops=True` removes all 23. Whether that is *faster* is unmeasured; unbacked symbolic shapes can generate worse code than an eager fallback.
+5. **And it barely matters.** Forcing the FP16 model to use INT4's expert selections, with full-precision weights throughout and a control verified neutral to six decimals, reproduces **2.7%** of INT4's degradation. The other 97% is quantization error inside the expert weights. MoE experts are substitutable enough that routing fidelity is measurable, monotonic in quantization strength, and close to inconsequential for output quality.
 
-6. **Quantized routing is not reproducible across environments.** The same checkpoint on two A100 setups gave INT4 drift of 0.0667 and 0.1254 while FP16 routes agreed to 2 rows in 864. Anyone comparing MoE quantization results across papers should record their bitsandbytes version.
+6. **The `torch.compile` limitation is a default, not a law.** The real model produces 23 graph breaks, 16 of them at a single `torch.nonzero` in the expert dispatch. Setting `torch._dynamo.config.capture_dynamic_output_shape_ops=True` removes all 23. Whether that is *faster* is unmeasured; unbacked symbolic shapes can generate worse code than an eager fallback.
+
+7. **Quantized routing is not reproducible across environments.** The same checkpoint on two A100 setups gave INT4 drift of 0.0667 and 0.1254 while FP16 routes agreed to 2 rows in 864. Anyone comparing MoE quantization results across papers should record their bitsandbytes version.
 
 ## Known Limitations
 
@@ -386,7 +407,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 - **Two distinct drift values.** Three precisions give two non-trivial points, and any two points lie on a line. The correlation reported is a direction, not a result.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **No error bars on drift.** Single prompt set, no seed sweep, no bootstrap.
-- **End-to-end kernel timing has not been re-measured.** The op fractions are now measured by module, and at the same shape (seq=512, batch=4) as the 0.985x end-to-end figure, but that figure was taken on different hardware with an older software stack. Given INT4 drift differed twofold between those environments, the apparent gap against the 1.07x ceiling is suggestive rather than established.
+- **The launch-bound explanation is inferred, not directly measured.** The flat latency curve and the graph-break count are both measured; that removing the breaks would recover the kernel gain is a hypothesis. Running the benchmark with `capture_dynamic_output_shape_ops=True` would test it and has not been done.
 - **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
 - **Compiler latency is unmeasured.** The graph-break counts are real; the claim that removing them helps is not made.
 
