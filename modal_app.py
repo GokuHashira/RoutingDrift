@@ -84,10 +84,15 @@ _IGNORE = [
 ]
 
 
-def _image(transformers_pin: str) -> modal.Image:
+def _image(transformers_pin: str, extra: tuple = ()) -> modal.Image:
+    """
+    Build an image. `add_local_dir` must come LAST: Modal rejects any build step after
+    local files are added, since that would rebuild the image on every source edit.
+    Extra packages therefore have to be passed in here rather than chained on afterwards.
+    """
     return (
         modal.Image.debian_slim(python_version="3.11")
-        .pip_install("torch==2.5.0", transformers_pin, *_COMMON)
+        .pip_install("torch==2.5.0", transformers_pin, *_COMMON, *extra)
         .add_local_dir(".", remote_path=REPO, ignore=_IGNORE)
     )
 
@@ -421,7 +426,8 @@ def qwen_drift():
 # ---------------------------------------------------------------------------
 # Kernel sub-study -- correctness and an honestly measured Amdahl ceiling
 # ---------------------------------------------------------------------------
-kernel_image = _image("transformers==4.46.0").pip_install("triton==3.1.0", "python-dotenv")
+# Triton and dotenv only the kernel stage needs, so they are not in the shared image.
+kernel_image = _image("transformers==4.46.0", extra=("triton==3.1.0", "python-dotenv"))
 
 
 @app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
