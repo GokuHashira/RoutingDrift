@@ -675,6 +675,14 @@ def _compute_drift(args, all_routes, variant_to_precision, variant_info=None):
             "jaccard_drift": round(baseline_metrics["jaccard_drift"], 6),
             "overlap_at_k": round(baseline_metrics["overlap_at_k"], 6),
             "selection_shift": round(baseline_metrics["selection_shift"], 6),
+            # These two MUST be present on the baseline row even when NLL was not
+            # requested. save_summary_csv takes its fieldnames from rows[0], so a variant
+            # row carrying a key the baseline lacks raises
+            #     ValueError: dict contains fields not in fieldnames: 'nll', ...
+            # which is exactly how the Qwen run died: all three precisions measured, drift
+            # computed and printed, then killed while writing the CSV.
+            "nll": round(baseline_nll, 6) if isinstance(baseline_nll, float) else "",
+            "nll_delta_vs_baseline": 0.0 if isinstance(baseline_nll, float) else "",
         }
     ]
 

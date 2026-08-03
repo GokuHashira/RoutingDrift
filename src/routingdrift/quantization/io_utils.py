@@ -70,16 +70,35 @@ def load_routes_raw(path: str | Path) -> dict:
 
 
 def save_summary_csv(rows: List[dict], output_path: str | Path) -> None:
-    """Save experiment summary to CSV."""
+    """
+    Save experiment summary to CSV.
+
+    Fieldnames are the UNION of every row's keys, in first-seen order, not `rows[0]`'s
+    keys. Taking them from the first row makes the writer throw whenever a later row
+    carries a column the first one lacks:
+
+        ValueError: dict contains fields not in fieldnames: 'nll', ...
+
+    which is how a completed Qwen run was lost: three precisions measured, drift computed
+    and printed, then killed on the write because the quantized rows had an `nll` column
+    the baseline row did not. Rows are the product of a run that has already been paid
+    for, so the writer must not be the thing that discards them. Missing values are
+    written blank via restval.
+    """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not rows:
         return
 
-    fieldnames = list(rows[0].keys())
+    fieldnames: List[str] = []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
         writer.writeheader()
         writer.writerows(rows)
 
