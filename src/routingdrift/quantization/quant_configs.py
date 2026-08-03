@@ -45,6 +45,14 @@ class QuantConfigSpec:
     # Layers to leave in FP16, resolved against the model at load time. `None` means
     # "quantize everything".
     quantize_first_n_layers: Optional[int] = None
+    # Leave the ROUTER modules themselves in FP16 while quantizing everything else.
+    #
+    # This is the control that decomposes drift into its two mechanisms. Every other config
+    # fuses them: the router's own weights are quantized AND the hidden states arriving at
+    # it have already passed through quantized layers. Exempting the router isolates the
+    # second, and the difference against the matching full-quantization config is the
+    # first.
+    exempt_routers: bool = False
     lever: str = ""
 
 
@@ -82,6 +90,18 @@ SWEEP: List[QuantConfigSpec] = [
     QuantConfigSpec("nf4_L8", "nf4 on the first 8 layers only", _fourbit("nf4", True, torch.float16), 8, "layer_coverage"),
     QuantConfigSpec("nf4_L12", "nf4 on the first 12 layers only", _fourbit("nf4", True, torch.float16), 12, "layer_coverage"),
     QuantConfigSpec("nf4_L16", "nf4 on the first 16 layers only", _fourbit("nf4", True, torch.float16), 16, "layer_coverage"),
+
+    # Router-exempt controls. Each pairs with an existing config that differs ONLY in
+    # whether the gate is quantized, so the difference in drift is the gate's causal
+    # contribution:
+    #   nf4_gate_fp16   vs nf4       (both nf4, no double quant, fp16 compute)
+    #   int8_gate_fp16  vs int8_t6   (both int8 at threshold 6.0, the bnb default)
+    # Keep those pairings intact if either baseline is ever changed.
+    QuantConfigSpec("nf4_gate_fp16", "nf4 everywhere EXCEPT the routers",
+                    _fourbit("nf4", False, torch.float16), None, "router_exemption",
+                    exempt_routers=True),
+    QuantConfigSpec("int8_gate_fp16", "int8 everywhere EXCEPT the routers",
+                    _int8(6.0), None, "router_exemption", exempt_routers=True),
 ]
 
 BY_NAME: Dict[str, QuantConfigSpec] = {spec.name: spec for spec in SWEEP}
@@ -128,6 +148,26 @@ def discover_router_layer_prefixes(model) -> List[str]:
         return int(prefix.rsplit(".", 1)[-1])
 
     return sorted(prefixes, key=_layer_index)
+
+
+def discover_router_module_names(model) -> List[str]:
+    """
+    Exact module paths of the routers, e.g. `model.layers.0.mlp.gate`.
+
+    Returns full names rather than a substring like "mlp.gate" because transformers matches
+    `llm_int8_skip_modules` by substring against the dotted module name, and a careless
+    pattern can catch far more than intended. "mlp.gate" happens to be safe on OLMoE, whose
+    expert projections sit at `mlp.experts.N.gate_proj`, but it is safe by accident: any
+    architecture naming an expert projection `mlp.gate_*` would have every expert silently
+    exempted and the config would still report success.
+
+    Uses the same matcher RoutingLogger hooks with, so the modules left in FP16 are exactly
+    the modules whose outputs are being logged as routing decisions.
+    """
+    from routingdrift.quantization.routing_logger import RoutingLogger
+
+    matcher = RoutingLogger(top_k=1)
+    return [name for name, _ in model.named_modules() if matcher._is_target_router(name)]
 
 
 def skip_modules_for_layer_limit(router_layer_prefixes: Sequence[str], first_n: int) -> List[str]:

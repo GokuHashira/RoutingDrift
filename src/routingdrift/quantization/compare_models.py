@@ -45,8 +45,8 @@ table from being misread, and turn one confound into a testable claim: if the ex
 is what protects DeepSeek, then quantizing its gate by hand should erase the advantage.
 
     PYTHONPATH=src python3 -m routingdrift.quantization.compare_models \\
-        --run olmoe:results_modal/olmoe_top8:8 \\
-        --run deepseek:results_modal/deepseek_v2_lite:6
+        --run olmoe:modal_outputs/olmoe_top8:8 \\
+        --run deepseek:modal_outputs/deepseek_v2_lite:6
 
 Stdlib only, like bootstrap.py: this is arithmetic over CSVs and should not need torch.
 """
@@ -163,7 +163,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--run", action="append", required=True, metavar="NAME:DIR:TOPK",
-        help="Repeatable. e.g. olmoe:results_modal/olmoe_top8:8",
+        help="Repeatable. e.g. olmoe:modal_outputs/olmoe_top8:8",
     )
     ap.add_argument("--out", default=None, help="Optional CSV path for the corrected table.")
     args = ap.parse_args()

@@ -18,8 +18,8 @@ Two things bloat it:
 
 Dry run by default; pass --apply to modify.
 
-    python tools/prune_results.py --results_dir results_modal
-    python tools/prune_results.py --results_dir results_modal --apply
+    python tools/prune_results.py --results_dir modal_outputs
+    python tools/prune_results.py --results_dir modal_outputs --apply
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def prune_lm_eval(path: Path, apply: bool) -> tuple[int, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--results_dir", default="results_modal")
+    ap.add_argument("--results_dir", default="modal_outputs")
     ap.add_argument("--apply", action="store_true", help="Actually modify files.")
     args = ap.parse_args()
 

@@ -11,6 +11,12 @@ report.md
 /tenv/
 .DS_Store
 
-# Staging area for `make pull-results`. Move what should be kept into results/.
+# Complete local mirror of the Modal results volume, written by `make pull-results`.
+# Every run's outputs and logs; model weights are on a separate volume and never pulled.
+# Deliberately untracked: this is the raw record of what was run, and the curated subset
+# lives in results/. Kept on disk so any number can be traced back to its own run log.
+/modal_outputs/
+/modal_outputs.partial/
+# Former name of the same thing, still ignored so an old local copy cannot be committed.
 /results_modal/
 /results_modal.partial/

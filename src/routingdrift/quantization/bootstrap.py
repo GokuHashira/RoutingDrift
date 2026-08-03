@@ -21,7 +21,7 @@ token rows, which weights a prompt by its length -- so the interval brackets the
 number rather than a differently-defined one.
 
     PYTHONPATH=src python3 -m routingdrift.quantization.bootstrap \\
-        --results_dir results_modal/olmoe_top8
+        --results_dir modal_outputs/olmoe_top8
 
 Needs no third-party packages: stdlib only, so it runs wherever the route dumps do.
 """

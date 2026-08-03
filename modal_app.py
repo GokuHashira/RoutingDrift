@@ -344,7 +344,16 @@ def probe(n_prompts: int = 20):
 # ---------------------------------------------------------------------------
 # Stage 3 -- the correlation. This is the paper.
 # ---------------------------------------------------------------------------
-_SWEEP_TOTAL_CONFIGS = 15
+# Derived in-container, not hardcoded. It was 15 and the sweep grew to 17 when the
+# router-exemption controls were added; a stale constant would make the chunk loop declare
+# victory two configs early and the missing rows would look like a silent failure.
+def _sweep_total_configs() -> int:
+    import sys
+    sys.path.insert(0, f"{REPO}/src")
+    from routingdrift.quantization import quant_configs
+    return len(quant_configs.SWEEP)
+
+
 _SWEEP_CHUNK = 6
 
 
@@ -430,12 +439,14 @@ def sweep(quality: str = "nll"):
     #
     # The cost of a chunk boundary is one rescored fp16 baseline (~220s), because gate_kl
     # needs the baseline's per-token gate distributions and those are not persisted.
+    total = _sweep_total_configs()
+    print(f"[sweep] {total} configs defined in quant_configs.SWEEP")
     for attempt in range(1, 6):
         before = _sweep_scored_configs()
         print(f"\n[sweep] chunk {attempt}: {len(before)} config(s) already scored")
         _run_sweep_chunk(quality)
         after = _sweep_scored_configs()
-        if len(after) >= _SWEEP_TOTAL_CONFIGS:
+        if len(after) >= total:
             print(f"[sweep] all {len(after)} configs scored after {attempt} chunk(s)")
             break
         if after == before:

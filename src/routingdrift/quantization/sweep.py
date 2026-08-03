@@ -164,6 +164,7 @@ def run_sweep(args: argparse.Namespace) -> int:
     baseline_routes: Optional[Dict[str, List[torch.Tensor]]] = None
     baseline_probs: Optional[Dict[str, List[torch.Tensor]]] = None
     router_layer_prefixes: List[str] = []
+    router_module_names: List[str] = []
     drift_rows: List[dict] = []
     eval_rows: List[dict] = []
     resolved_revision: Optional[str] = None
@@ -173,7 +174,16 @@ def run_sweep(args: argparse.Namespace) -> int:
 
         quant_config = spec.build()
         skip_modules: List[str] = []
-        if spec.quantize_first_n_layers is not None:
+        if spec.exempt_routers:
+            if not router_module_names:
+                raise RuntimeError(
+                    "router-exemption configs require the fp16 baseline to run first, "
+                    "since the router paths are discovered from the live module tree"
+                )
+            skip_modules = list(router_module_names)
+            print(f"[sweep] exempting {len(skip_modules)} router module(s) from "
+                  f"quantization: {skip_modules[0]} ...")
+        elif spec.quantize_first_n_layers is not None:
             if not router_layer_prefixes:
                 raise RuntimeError("layer-coverage configs require the fp16 baseline to run first")
             skip_modules = quant_configs.skip_modules_for_layer_limit(
@@ -217,7 +227,9 @@ def run_sweep(args: argparse.Namespace) -> int:
 
         if not router_layer_prefixes:
             router_layer_prefixes = quant_configs.discover_router_layer_prefixes(model)
-            print(f"[sweep] {len(router_layer_prefixes)} router-bearing layers "
+            router_module_names = quant_configs.discover_router_module_names(model)
+            print(f"[sweep] {len(router_layer_prefixes)} router-bearing layers, "
+                  f"{len(router_module_names)} router modules "
                   f"(config reports num_hidden_layers={getattr(model.config, 'num_hidden_layers', '?')})")
 
         routes, probs = collect_routes_and_probs(
@@ -300,7 +312,9 @@ def run_sweep(args: argparse.Namespace) -> int:
             "lever": spec.lever,
             "description": spec.description,
             "quantized_layers": (
-                len(router_layer_prefixes) - len(skip_modules) if spec.name != "fp16" else 0
+                len(router_layer_prefixes) if spec.exempt_routers
+                else len(router_layer_prefixes) - len(skip_modules)
+                if spec.name != "fp16" else 0
             ),
             "routing_similarity_rs": round(metrics["routing_similarity_rs"], 6),
             "jaccard_drift": round(metrics["jaccard_drift"], 6),
