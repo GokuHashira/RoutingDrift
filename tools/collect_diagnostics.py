@@ -130,6 +130,52 @@ def digest(results_dir: Path) -> None:
                     print(f"    {r.get('predictor',''):<16} n={r.get('n_points','')} "
                           f"pearson={r.get('pearson','')} spearman={r.get('spearman','')}")
 
+        # Accuracy per variant, and whether drift tracks it. run_experiment writes these
+        # under different names than the sweep does, and the digest previously reported
+        # only the sweep's -- so a completed task1 showed no accuracy at all.
+        eval_csv = run / "lm_eval_scores.csv"
+        if eval_csv.is_file():
+            rows = _rows(eval_csv)
+            tasks = sorted({r["task"] for r in rows})
+            variants = sorted({r["variant"] for r in rows}, key=lambda v: (v != "fp16", v))
+            print(f"\n  ACCURACY ({len(rows)} measurements)")
+            print("    " + "variant".ljust(10) + "".join(task.ljust(14) for task in tasks))
+            by = {(r["variant"], r["task"]): r for r in rows}
+            for variant in variants:
+                cells = ""
+                for task in tasks:
+                    r = by.get((variant, task))
+                    cells += (f"{float(r['accuracy']):.4f}".ljust(14)) if r else "-".ljust(14)
+                print(f"    {variant:<10}{cells}")
+            # Degradation relative to the fp16 row, which is what drift should predict.
+            for task in tasks:
+                base = by.get(("fp16", task))
+                if not base:
+                    continue
+                drops = [
+                    (v, float(base["accuracy"]) - float(by[(v, task)]["accuracy"]))
+                    for v in variants if v != "fp16" and (v, task) in by
+                ]
+                if drops:
+                    print(f"    drop vs fp16, {task}: " +
+                          "  ".join(f"{v}={d:+.4f}" for v, d in drops))
+
+        corr_re = run / "drift_accuracy_correlations.csv"
+        if corr_re.is_file():
+            rows = _rows(corr_re)
+            print("\n  DRIFT vs ACCURACY DROP")
+            for r in rows:
+                n = r.get("n_points", "")
+                print(f"    {r.get('group',''):<12} n={n:<4} "
+                      f"pearson={r.get('pearson','') or 'n/a':<10} "
+                      f"spearman={r.get('spearman','') or 'n/a'}")
+            try:
+                if max(int(r.get("n_points", 0)) for r in rows) < 4:
+                    print("    ^ too few points for a correlation; this is a direction, not")
+                    print("      a result. The sweep is what makes it reportable.")
+            except ValueError:
+                pass
+
         # Q3: how big is the replay masking artifact on the real model?
         replay = run / "replay_result.json"
         if replay.is_file():
