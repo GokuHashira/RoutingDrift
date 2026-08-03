@@ -1,4 +1,4 @@
-variant,precision,compiler_mode,variant_type,routing_similarity_rs,jaccard_drift,overlap_at_k,selection_shift
-fp16,fp16,eager,baseline,1.0,0.0,1.0,0.0
-int8,int8,eager,quantization,0.958078,0.041922,0.975412,0.024588
-int4,int4,eager,quantization,0.869748,0.130252,0.921896,0.078104
+variant,precision,compiler_mode,variant_type,routing_similarity_rs,jaccard_drift,overlap_at_k,selection_shift,nll,nll_delta_vs_baseline
+fp16,fp16,eager,baseline,1.0,0.0,1.0,0.0,2.239308,0.0
+int8,int8,eager,quantization,0.958078,0.041922,0.975412,0.024588,2.240488,0.00118
+int4,int4,eager,quantization,0.869748,0.130252,0.921896,0.078104,2.264545,0.025237

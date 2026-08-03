@@ -1,0 +1,62 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name deepseek-ai/DeepSeek-V2-Lite --top_k 6 --output_dir /results/deepseek_v2_lite --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --max_length 128 --seed 0 --skip_heatmaps --resume --measure_nll
+# started : 2026-08-03T18:07:41.751109+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/deepseek_v2_lite/logs/run_experiment_20260803T180741Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/deepseek_v2_lite/prompts_used.txt
+[Saved] /results/deepseek_v2_lite/run_manifest.json
+
+========== REUSING fp16 from routes_fp16.json.gz (26 modules, 201734 rows) ==========
+
+========== Loading variant: fp16 ==========
+2026-08-03:18:07:56,576 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:16<00:48, 16.29s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:34<00:34, 17.40s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:53<00:18, 18.14s/it]Loading checkpoint shards: 100%|##########| 4/4 [01:07<00:00, 16.39s/it]Loading checkpoint shards: 100%|##########| 4/4 [01:07<00:00, 16.80s/it]
+[load] quantized modules: 0 of 5182 Linear (model is unquantized)
+
+========== NLL for fp16 ==========
+[nll] fp16: 2.239308
+[Saved] unchanged, reused /results/deepseek_v2_lite/routes_fp16.json.gz
+
+========== REUSING int8 from routes_int8.json.gz (26 modules, 201734 rows) ==========
+
+========== Loading variant: int8 ==========
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:08<00:26,  8.82s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:17<00:17,  8.98s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:27<00:09,  9.08s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:33<00:00,  7.99s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:33<00:00,  8.36s/it]
+[load] quantized modules: 5181 of 5182 Linear [Linear8bitLt=5181]; 27 layers touched, layers 0-26
+
+========== NLL for int8 ==========
+[nll] int8: 2.240488
+[Saved] unchanged, reused /results/deepseek_v2_lite/routes_int8.json.gz
+
+========== REUSING int4 from routes_int4.json.gz (26 modules, 201734 rows) ==========
+
+========== Loading variant: int4 ==========
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:09<00:27,  9.23s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:18<00:18,  9.15s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:28<00:09,  9.43s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:34<00:00,  8.35s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:34<00:00,  8.69s/it]
+[load] quantized modules: 5181 of 5182 Linear [Linear4bit=5181]; 27 layers touched, layers 0-26
+
+========== NLL for int4 ==========
+[nll] int4: 2.264545
+[Saved] unchanged, reused /results/deepseek_v2_lite/routes_int4.json.gz
+[guard] baseline-vs-baseline RS = 1.0000000000 (expected 1.0)
+
+Research Metrics int8 vs fp16
+  Routing similarity RS : 0.9581
+  Jaccard routing drift : 0.0419
+  Overlap@k             : 0.9754
+  Selection shift       : 0.0246
+
+Research Metrics int4 vs fp16
+  Routing similarity RS : 0.8697
+  Jaccard routing drift : 0.1303
+  Overlap@k             : 0.9219
+  Selection shift       : 0.0781
+
+[Saved] /results/deepseek_v2_lite/routing_drift_summary.csv
+[Saved] /results/deepseek_v2_lite/routing_drift_layers.csv
+[Saved] /results/deepseek_v2_lite/summary.md
+[Saved] /results/deepseek_v2_lite/run_manifest.json
+
+[Done] Results in /results/deepseek_v2_lite   Log: /results/deepseek_v2_lite/logs/run_experiment_20260803T180741Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T18:25:24.181305+00:00

@@ -120,6 +120,32 @@ def swapped_experts(selection_shift: float, top_k: int) -> float:
     return selection_shift * top_k
 
 
+def spearman(xs: List[float], ys: List[float]) -> float:
+    """
+    Rank correlation. Stdlib only, and exact for the small n here (no tie handling needed
+    unless two models post identical values, which has not happened).
+
+    Used across MODELS at a fixed precision, which is a different question from the
+    within-model correlation the sweep fits. Comparing argmax alone -- does the model with
+    the most drift also have the most damage -- throws away the middle of the ordering, and
+    on these three models the middle is where the answer lives: at INT4 the extremes
+    disagree while DeepSeek is still lowest on both.
+    """
+    n = len(xs)
+    if n < 3:
+        return float("nan")
+
+    def rank(vals):
+        order = sorted(range(n), key=lambda i: vals[i])
+        out = [0] * n
+        for pos, i in enumerate(order):
+            out[i] = pos + 1
+        return out
+
+    d2 = sum((a - b) ** 2 for a, b in zip(rank(xs), rank(ys)))
+    return 1 - 6 * d2 / (n * (n * n - 1))
+
+
 def jaccard_for_one_swap(top_k: int) -> float:
     """
     Jaccard drift produced by exactly one swapped expert at this k.
@@ -264,22 +290,26 @@ def main() -> int:
                       f"cross-model drift-vs-quality not testable. Re-run the missing ones "
                       f"with --measure_nll --resume.")
             continue
-        worst_drift = max(withq, key=lambda r: r["swapped_experts_per_token"])
-        worst_qual = max(withq, key=lambda r: float(r["nll_delta_vs_baseline"]))
-        print(f"\n  {variant}: most routing churn is {worst_drift['model']} "
-              f"({worst_drift['swapped_experts_per_token']:.3f} swaps/tok), "
-              f"most quality loss is {worst_qual['model']} "
-              f"({float(worst_qual['nll_delta_vs_baseline']):+.4f} NLL)")
-        if worst_drift["model"] != worst_qual["model"]:
-            print(f"           THESE DISAGREE. Across models, more drift does not mean more")
-            print(f"           damage. Consistent with the replay result that routing")
-            print(f"           explains ~3% of degradation: dNLL is dominated by weight")
-            print(f"           error, which scales with the model, not with its routing.")
-            print(f"           Drift is a WITHIN-model instrument. Do not read the")
-            print(f"           within-model correlation as a cross-model prediction.")
+        ordered = sorted(withq, key=lambda r: r["swapped_experts_per_token"])
+        rho = spearman([r["swapped_experts_per_token"] for r in withq],
+                       [float(r["nll_delta_vs_baseline"]) for r in withq])
+        print(f"\n  {variant}: cross-model drift vs quality, {len(withq)} models")
+        for r in ordered:
+            print(f"    {r['model']:<12} {r['swapped_experts_per_token']:>7.4f} swaps/tok  "
+                  f"{float(r['nll_delta_vs_baseline']):+.5f} NLL")
+        print(f"    Spearman(swaps, dNLL) = {rho:+.2f}")
+        if rho >= 0.99:
+            print("      Drift ranks the models exactly as quality loss does at this")
+            print("      precision. Note this is 3 points; it is an ordering, not a fit.")
+        elif rho > 0:
+            worst_d = ordered[-1]["model"]
+            worst_q = max(withq, key=lambda r: float(r["nll_delta_vs_baseline"]))["model"]
+            print(f"      Ordering only partly holds: most churn is {worst_d}, most damage")
+            print(f"      is {worst_q}. Consistent with the replay result that routing")
+            print("      explains ~3% of degradation, so once weight error is large enough")
+            print("      it can outrank routing. Model capacity is the obvious candidate.")
         else:
-            print(f"           Same model on both, so the cross-model ordering is at least")
-            print(f"           consistent here. Two or three points cannot establish more.")
+            print("      Drift does not rank models by quality loss at this precision.")
 
     print("\nCaveat that must travel with this table: the gates are not quantized alike.")
     print("OLMoE's gate is nn.Linear and IS quantized; DeepSeek's MoEGate is a raw")

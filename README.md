@@ -291,6 +291,48 @@ quantization error to flip. This is the granularity axis the third model was cho
 And on raw jaccard, DeepSeek looks worse than OLMoE at INT4 (0.1303 against 0.1142) while
 actually swapping fewer experts (0.469 against 0.528). The raw ordering is a k artifact.
 
+#### Does drift predict quality ACROSS models?
+
+All three now carry NLL measured in their own run:
+
+| model | precision | swaps/token | 95% CI | dNLL vs FP16 |
+|---|---|---:|---|---:|
+| DeepSeek-V2-Lite (16B) | INT8 | 0.1475 | [0.1429, 0.1529] | +0.00118 |
+| OLMoE (7B) | INT8 | 0.2214 | [0.2160, 0.2273] | +0.00312 |
+| Qwen3-30B-A3B (30B) | INT8 | 0.3171 | [0.3063, 0.3290] | +0.00512 |
+| DeepSeek-V2-Lite (16B) | INT4 | 0.4686 | [0.4565, 0.4830] | +0.02524 |
+| OLMoE (7B) | INT4 | 0.5281 | [0.5189, 0.5384] | +0.08664 |
+| Qwen3-30B-A3B (30B) | INT4 | 0.7961 | [0.7792, 0.8150] | +0.05810 |
+
+**Drift ranks the models by quality loss at INT8, and only partly at INT4.**
+
+| precision | Spearman(swaps/token, dNLL) across the three models |
+|---|---:|
+| INT8 | **+1.00** |
+| INT4 | **+0.50** |
+
+At 8 bits the ordering is exact: DeepSeek drifts least and loses least, Qwen drifts most
+and loses most. At 4 bits it breaks on one pair, OLMoE against Qwen. Qwen has 51% more
+routing churn and one third less quality loss.
+
+The break has a reading, and it is the replay result again. Routing explains roughly 3% of
+INT4's degradation, so the remaining 97% is weight error, and at 4 bits that error is large
+enough to reorder models that differ in capacity. Qwen is 30B against OLMoE's 7B and
+absorbs it better despite the extra churn. At 8 bits the weight error is small enough that
+routing differences still decide the ordering.
+
+So the metric's cross-model reach is precision-dependent, and the honest statement is
+narrow: **routing drift orders architectures by quality loss while quantization is mild,
+and stops doing so once weight error dominates.** With three models this is an ordering
+rather than a fit, and capacity is the obvious candidate for the confound rather than a
+demonstrated cause.
+
+DeepSeek is lowest on both metrics at both precisions, and it is the one model whose router
+bitsandbytes never touches. Suggestive of the gate mechanism, not evidence for it: its
+16B size and two shared experts are equally good explanations, and separating them needs
+the gate-quantization experiment described below.
+
+
 **One confound must travel with this table.** The gates are not quantized alike. OLMoE's
 `mlp.gate` is an `nn.Linear`, so bitsandbytes replaces it and the router weights are
 themselves quantized. DeepSeek's `MoEGate` holds a raw `nn.Parameter`, which bitsandbytes
@@ -564,7 +606,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 - **The correlation rests on 13 distinct configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **Drift and gate KL cannot be separated by correlation.** They are 98% collinear across the sweep, so the sweep establishes that drift tracks quality loss and not that it explains anything gate noise does not. The causal replay is the only evidence that distinguishes them, and it has run on one model.
-- **Quality is measured for one of three models.** The sweep supplies NLL for OLMoE. DeepSeek and Qwen have drift with no quality metric, so the drift-to-quality relationship is untested outside OLMoE.
+- **The cross-model drift-to-quality ordering rests on three points.** Spearman is +1.00 at INT8 and +0.50 at INT4. Three models can establish an ordering, not a fit, and capacity is uncontrolled: the INT4 break falls exactly on the 7B-versus-30B pair.
 - **The cross-model comparison has an uncontrolled confound.** OLMoE's router is quantized and DeepSeek's is not, because one is an `nn.Linear` and the other an `nn.Parameter`. Layer count, hidden size, shared-expert count and training data also differ. The top-k correction removes one confound, not these.
 - **The layer dial has five points, one of which is redundant.** `nf4_L16` duplicates `nf4_dq` exactly, so the dial really resolves 2, 4, 8, 12 layers and full coverage.
 - **Compiler timings share one attention backend that the other benchmarks do not.** cuDNN SDPA is disabled throughout `compile_benchmark`, because Inductor's tensor layouts make it fail. Numbers there are internally consistent but not directly comparable to `benchmark_olmoe.csv`.

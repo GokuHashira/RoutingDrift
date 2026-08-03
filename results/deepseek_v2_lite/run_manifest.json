@@ -1,5 +1,5 @@
 {
-  "command": "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name deepseek-ai/DeepSeek-V2-Lite --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/deepseek_v2_lite --top_k 6 --max_length 128 --seed 0 --skip_heatmaps",
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name deepseek-ai/DeepSeek-V2-Lite --top_k 6 --output_dir /results/deepseek_v2_lite --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --max_length 128 --seed 0 --skip_heatmaps --resume --measure_nll",
   "config": {
     "compiler_modes": [],
     "lm_eval_limit": null,
@@ -22,7 +22,7 @@
   },
   "git": {
     "branch": "upgrade-for-research",
-    "commit": "1850afbeecf863c4e0a26bc328ab1687a9cb671c",
+    "commit": "fce5bd4c99b7149ee4033742a11ebc8eddd2ea45",
     "dirty": false,
     "source": "modal add_local_dir (working tree, not a clone)"
   },
@@ -42,28 +42,12 @@
     ]
   },
   "guards": {
-    "all_variants_deterministic": true,
+    "all_variants_deterministic": null,
     "baseline_self_consistency_rs": 1.0,
-    "determinism_by_variant": {
-      "fp16": {
-        "identical": true,
-        "mismatched_rows": 0
-      },
-      "int4": {
-        "identical": true,
-        "mismatched_rows": 0
-      },
-      "int8": {
-        "identical": true,
-        "mismatched_rows": 0
-      }
-    },
-    "determinism_check": {
-      "identical": true,
-      "mismatched_rows": 0
-    }
+    "determinism_by_variant": {},
+    "determinism_check": null
   },
-  "log_file": "/results/deepseek_v2_lite/logs/run_experiment_20260803T050339Z.log",
+  "log_file": "/results/deepseek_v2_lite/logs/run_experiment_20260803T180741Z.log",
   "model_name": "deepseek-ai/DeepSeek-V2-Lite",
   "packages": {
     "accelerate": "1.14.0",
@@ -88,31 +72,25 @@
     "use_deterministic_algorithms": "True (warn_only)"
   },
   "status": "completed",
-  "timestamp_utc": "2026-08-03T05:24:39.266759+00:00",
+  "timestamp_utc": "2026-08-03T18:25:24.168348+00:00",
   "variants": {
     "fp16": {
-      "determinism": {
-        "identical": true,
-        "mismatched_rows": 0
-      },
+      "nll": 2.2393080995123014,
       "precision": "fp16",
-      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0"
+      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0",
+      "resumed_from": "/results/deepseek_v2_lite/routes_fp16.json.gz"
     },
     "int4": {
-      "determinism": {
-        "identical": true,
-        "mismatched_rows": 0
-      },
+      "nll": 2.264544971237638,
       "precision": "int4",
-      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0"
+      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0",
+      "resumed_from": "/results/deepseek_v2_lite/routes_int4.json.gz"
     },
     "int8": {
-      "determinism": {
-        "identical": true,
-        "mismatched_rows": 0
-      },
+      "nll": 2.2404880166863133,
       "precision": "int8",
-      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0"
+      "resolved_revision": "604d5664dddd88a0433dbae533b7fe9472482de0",
+      "resumed_from": "/results/deepseek_v2_lite/routes_int8.json.gz"
     }
   }
 }
