@@ -10,3 +10,7 @@ report.md
 /docs/
 /tenv/
 .DS_Store
+
+# Staging area for `make pull-results`. Move what should be kept into results/.
+/results_modal/
+/results_modal.partial/

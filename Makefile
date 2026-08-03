@@ -58,7 +58,12 @@ verify:
 # committed Zaratan reference, and results/ is re-uploaded to the container on every
 # `modal run`, so pulling straight into it would ship experiment output back and forth.
 pull-results:
-	modal volume get routingdrift-results / ./results_modal
+	@# modal volume get refuses to write into a directory that already exists, so pull
+	@# into a temp and swap only on success -- a failed pull then cannot destroy the
+	@# copy from the previous one.
+	rm -rf results_modal.partial
+	modal volume get routingdrift-results / results_modal.partial
+	rm -rf results_modal && mv results_modal.partial results_modal
 	@echo
 	@du -sh results_modal/* 2>/dev/null || true
 	@echo
