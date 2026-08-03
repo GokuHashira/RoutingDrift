@@ -29,11 +29,13 @@ def _rms_norm_fwd_kernel(
         mask=cols<N
         x=tl.load(X_row+cols, mask=mask, other=0.0).to(tl.float32)
         w=tl.load(W_ptr+cols, mask=mask, other=1.0).to(tl.float32)
-        tl.store(Y_row+cols, (x*rrms*w).to(tl.float16), mask=mask)
+        # Output dtype follows the output tensor, not a hardcoded fp16.
+        tl.store(Y_row+cols, (x*rrms*w).to(Y_row.dtype.element_ty), mask=mask)
 
 
-def fused_rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float=1e-6) -> torch.Tensor:
-    """Drop-in RMSNorm. Accepts 2D (M, N) or 3D (B, S, N); returns same shape in fp16."""
+def fused_rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float=1e-6,
+                   out_dtype: torch.dtype | None=None) -> torch.Tensor:
+    """Drop-in RMSNorm. Accepts 2D (M, N) or 3D (B, S, N); output dtype follows the input."""
     assert x.is_cuda and weight.is_cuda
     assert x.shape[-1]==weight.shape[0]
     orig_shape=x.shape
@@ -44,7 +46,7 @@ def fused_rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float=1e-6) -> to
     x=x.contiguous()
     weight=weight.contiguous()
     M, N=x.shape
-    y=torch.empty_like(x, dtype=torch.float16)
+    y=torch.empty_like(x, dtype=out_dtype or x.dtype)
     BLOCK_N=max(triton.next_power_of_2(N), 16)
     _rms_norm_fwd_kernel[(M,)](x, weight, y, x.stride(0), N, eps, BLOCK_N=BLOCK_N)
     if len(orig_shape)==3:

@@ -23,15 +23,25 @@ def _softmax_fwd_kernel(
     x=x-tl.max(x, axis=0)  # subtract max for numerical stability
     x_exp=tl.exp(x)
     y=x_exp/tl.sum(x_exp, axis=0)
-    tl.store(Y_row+cols, y.to(tl.float16), mask=mask)
+    # Store in the OUTPUT tensor's dtype, not unconditionally fp16. HF computes gate
+    # probabilities in fp32; rounding them to fp16 here discards bits before the
+    # caller's topk, so the fused router can itself flip an expert selection. In a
+    # study measuring routing drift, the instrument must not be a source of drift.
+    tl.store(Y_row+cols, y.to(Y_row.dtype.element_ty), mask=mask)
 
 
-def fused_softmax(x: torch.Tensor) -> torch.Tensor:
-    """Row-wise softmax for MoE gate logits. Input: (M, N) fp16/fp32."""
+def fused_softmax(x: torch.Tensor, out_dtype: torch.dtype | None=None) -> torch.Tensor:
+    """
+    Row-wise softmax for MoE gate logits. Input: (M, N).
+
+    The output dtype follows the input unless overridden. It used to be forced to fp16,
+    which silently truncated fp32 gate probabilities and could flip a top-k selection --
+    a real hazard when the whole study is about routing changes.
+    """
     assert x.is_cuda and x.ndim==2
     x=x.contiguous()
     M, N=x.shape
-    y=torch.empty_like(x, dtype=torch.float16)
+    y=torch.empty_like(x, dtype=out_dtype or x.dtype)
     BLOCK_N=max(triton.next_power_of_2(N), 8)
     _softmax_fwd_kernel[(M,)](x, y, x.stride(0), N, BLOCK_N=BLOCK_N)
     return y

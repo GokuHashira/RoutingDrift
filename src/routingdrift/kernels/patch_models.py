@@ -12,14 +12,12 @@ from routingdrift.kernels.softmax import fused_softmax
 
 load_dotenv(find_dotenv())
 
-OLMOE_PATH = os.getenv("OLMOE_PATH", "")
-MIXTRAL_PATH = os.getenv("MIXTRAL_PATH", "")
-DEVICE = "cuda"
-
-if not OLMOE_PATH:
-    raise EnvironmentError("OLMOE_PATH is not set. Copy .env.example to .env and fill in the paths.")
-if not MIXTRAL_PATH:
-    raise EnvironmentError("MIXTRAL_PATH is not set. Copy .env.example to .env and fill in the paths.")
+# Hub ids as defaults. This module used to raise at IMPORT time when these were unset,
+# which meant nothing in kernels/ could be imported, tested, or documented without a
+# configured .env -- including by CI and by the import-graph checker.
+OLMOE_PATH = os.getenv("OLMOE_PATH") or "allenai/OLMoE-1B-7B-0924"
+MIXTRAL_PATH = os.getenv("MIXTRAL_PATH") or "TheBloke/Mixtral-8x7B-v0.1-GPTQ"
+DEVICE = os.getenv("ROUTINGDRIFT_DEVICE", "cuda")
 
 
 class FusedRMSNorm(nn.Module):
@@ -80,8 +78,12 @@ def _make_router_patcher(orig_forward, num_experts):
             # Only intercept the router gate tensor — identified by its last dim == num_experts.
             # All other softmax calls (attention, etc.) pass through unchanged.
             if x.ndim==2 and x.shape[-1]==num_experts and dim in (-1, 1):
+                # Keep fp32 end to end. Previously this computed in fp32, truncated to
+                # fp16 inside the kernel, then upcast -- so the bits were already gone.
+                # HF's router softmax is fp32, and a rounded gate probability can change
+                # which expert wins.
                 out_dtype=kw.get("dtype", x.dtype)
-                return fused_softmax(x.float()).to(out_dtype)
+                return fused_softmax(x.float(), out_dtype=torch.float32).to(out_dtype)
             return orig_softmax(x, dim=dim, **kw)
         F.softmax=_fused
         try:
