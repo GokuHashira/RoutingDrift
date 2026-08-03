@@ -454,8 +454,8 @@ def kernel_profile():
     """
     _gpu_report()
     # Explicit, so the stage does not depend on whatever a .env might have said.
-    os.environ["OLMOE_PATH"] = OLMOE
-    os.environ["MIXTRAL_PATH"] = os.environ.get("MIXTRAL_PATH", "")
+    # _run merges ENV into the subprocess environment, so setting it here is enough and
+    # avoids touching os.environ (which this module does not import at top level).
     ENV["OLMOE_PATH"] = OLMOE
     _run("routingdrift.kernels.validate_olmoe")
     _run(
