@@ -125,6 +125,7 @@ def run_sweep(args: argparse.Namespace) -> int:
     # A preempted container is restarted from the top with the same input, so a long
     # sweep must be able to pick up where it stopped or it may never converge.
     already_done: set = set()
+    resumed_rows: List[dict] = []
     if args.resume:
         prior = output_dir / "sweep_drift.csv"
         if prior.is_file():
@@ -140,7 +141,6 @@ def run_sweep(args: argparse.Namespace) -> int:
             # would contain only the configs run after the restart.
             resumed_rows = [r for r in drift_rows_prior if r["config"] != "fp16"]
 
-    resumed_rows: List[dict] = []
     baseline_routes: Optional[Dict[str, List[torch.Tensor]]] = None
     baseline_probs: Optional[Dict[str, List[torch.Tensor]]] = None
     router_layer_prefixes: List[str] = []
@@ -280,7 +280,7 @@ def run_sweep(args: argparse.Namespace) -> int:
         drift_rows.append(row)
         # Written after every config, not once at the end: a preemption partway through
         # would otherwise discard every config already paid for.
-        save_rows_csv(drift_rows, output_dir / "sweep_drift.csv")
+        _save_drift(drift_rows, resumed_rows, output_dir)
         print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  "
               f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  {elapsed:.0f}s")
 
@@ -314,8 +314,7 @@ def run_sweep(args: argparse.Namespace) -> int:
                 )
             _free()
 
-    drift_rows = drift_rows + [r for r in resumed_rows
-                               if r["config"] not in {d["config"] for d in drift_rows}]
+    drift_rows = _merge_resumed(drift_rows, resumed_rows)
     save_rows_csv(drift_rows, output_dir / "sweep_drift.csv")
     print(f"\n[Saved] {output_dir / 'sweep_drift.csv'}  ({len(drift_rows)} configs)")
 
@@ -453,6 +452,29 @@ def _print_correlations(correlations: List[dict]) -> None:
         "well as jaccard_drift does, routing fidelity is a proxy for gate noise rather than\n"
         "a metric in its own right."
     )
+
+
+def _merge_resumed(drift_rows: List[dict], resumed_rows: List[dict]) -> List[dict]:
+    """Current-run rows plus any resumed row for a config this run did not rescore."""
+    seen = {d["config"] for d in drift_rows}
+    return drift_rows + [r for r in resumed_rows if r["config"] not in seen]
+
+
+def _save_drift(drift_rows: List[dict], resumed_rows: List[dict], output_dir) -> None:
+    """
+    Write sweep_drift.csv, ALWAYS including rows carried over from a resumed run.
+
+    The incremental write is the one that matters. On resume, already-scored configs are
+    skipped, so `drift_rows` holds only what this run rescored -- and writing that alone
+    truncates the CSV to the post-restart subset the moment the first new config lands,
+    before the end-of-run merge can restore anything.
+
+    That destroys data that route dumps cannot rebuild. Drift is recomputable from
+    routes_*.json.gz, but NLL and gate_kl are not stored anywhere else: they are measured
+    while the model is resident and exist only in this CSV. Losing them means re-running
+    the whole config on a GPU.
+    """
+    save_rows_csv(_merge_resumed(drift_rows, resumed_rows), output_dir / "sweep_drift.csv")
 
 
 def main() -> int:
