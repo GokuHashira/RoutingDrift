@@ -28,6 +28,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::deepseek_drift        # ~$0.85
     modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
     modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
+    modal run modal_app.py::kernel_benchmark      # ~$0.30  E2E on the same machine
     modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
@@ -466,6 +467,34 @@ def kernel_profile():
     print("\nCompare profile_op_fractions_measured.csv against the committed "
           "profile_amdahl.csv. A softmax_pct that is no longer exactly 0.00 is the "
           "clearest sign the old number was an artifact of scanning only the top 15 ops.")
+
+
+@app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=2 * 60 * 60)
+def kernel_benchmark():
+    """
+    End-to-end latency, baseline versus kernel-patched, on the same machine as the
+    profiling that produced the Amdahl fraction.
+
+    This settles the one question sub-study 1 currently leaves open. Measured op fractions
+    put the ceiling at 1.07x; the recorded end-to-end figure is 0.985x. Both are at
+    seq=512, batch=4, so the shapes agree -- but the 0.985x came from Zaratan on an older
+    stack, and INT4 drift already turned out to differ twofold between that environment
+    and this one, so timing cannot be assumed to carry over.
+
+    If the gap survives on one machine, the limit is integration overhead rather than
+    Amdahl, and the sub-study's conclusion changes.
+    """
+    _gpu_report()
+    ENV["OLMOE_PATH"] = OLMOE
+    _run(
+        "routingdrift.kernels.benchmark",
+        "--model", "OLMoE",
+        "--out", f"{RESULTS}/kernels_rerun/olmoe",
+    )
+    print("\nRead the seq=512 batch=4 row against the 1.07x ceiling in "
+          "profile_amdahl.csv. Those two are directly comparable; the older 0.985x was "
+          "not, being from different hardware.")
 
 
 # ---------------------------------------------------------------------------

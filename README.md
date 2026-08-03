@@ -76,13 +76,14 @@ With the measured fraction, Amdahl's ceiling is **1.07x**, not the 1.015x previo
 claimed.
 
 **Bottom line, and it is now less settled than it was.** The recorded end-to-end result is
-**0.985x** at seq=512, batch=4. Against a 1.07x ceiling that is roughly eight points of
-headroom the integration is not capturing, which is a different conclusion from
-"Amdahl-bound, nothing to gain". The two numbers come from different hardware and
-different shapes, though, so the gap is not yet established: an end-to-end re-measurement
-under the same conditions as the profiling is needed before claiming it. If it holds, the
-lesson is the same one the Mixtral result teaches in a louder voice, that integration
-overhead rather than kernel quality is what governs whether a fast kernel helps.
+**0.985x** at seq=512, batch=4, which is the same shape the fractions were profiled at.
+Against a 1.07x ceiling that leaves roughly eight points of headroom the integration is
+not capturing, a different conclusion from "Amdahl-bound, nothing to gain". The gap is not
+yet established, because the two numbers come from different machines and software stacks:
+INT4 drift already differed twofold between those same two environments, so timing cannot
+be assumed to carry over. An end-to-end re-measurement on the profiling machine settles
+it. If the gap holds, the lesson is the one the Mixtral result teaches in a louder voice,
+that integration overhead rather than kernel quality governs whether a fast kernel helps.
 
 
 ---
@@ -373,7 +374,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 - **Two distinct drift values.** Three precisions give two non-trivial points, and any two points lie on a line. The correlation reported is a direction, not a result.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **No error bars on drift.** Single prompt set, no seed sweep, no bootstrap.
-- **End-to-end kernel timing has not been re-measured.** The op fractions are now measured by module, but the 0.985x end-to-end figure predates that and was taken on different hardware at different shapes, so the apparent gap against the 1.07x ceiling is suggestive rather than established.
+- **End-to-end kernel timing has not been re-measured.** The op fractions are now measured by module, and at the same shape (seq=512, batch=4) as the 0.985x end-to-end figure, but that figure was taken on different hardware with an older software stack. Given INT4 drift differed twofold between those environments, the apparent gap against the 1.07x ceiling is suggestive rather than established.
 - **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
 - **Compiler latency is unmeasured.** The graph-break counts are real; the claim that removing them helps is not made.
 
