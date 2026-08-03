@@ -215,11 +215,28 @@ def run_sweep(args: argparse.Namespace) -> int:
         #
         # Why not task accuracy: at --lm_eval_limit 200 the standard error on these tasks
         # is around 0.03 to 0.045 while the accuracy drops being measured are 0.01 to
-        # 0.02, so a fifteen-config correlation would be fitting a line through noise. NLL
-        # over ~120,000 token positions resolves differences that 200 multiple-choice
-        # outcomes cannot, costs one forward pass instead of a reload plus an eval, and is
-        # the same metric the causal replay uses, so the correlation and the intervention
-        # are directly comparable.
+        # 0.02, so a fifteen-config correlation would be fitting a line through noise.
+        #
+        # What makes NLL sharper is PAIRING, not sample size. The prompt set is small --
+        # 100 prompts truncated at max_length, so at most 12,700 predicted positions and
+        # in practice fewer, since most of these prompts are shorter than 128 tokens. The
+        # absolute NLL of any one config carries a prompt-difficulty term of order a few
+        # tenths of a nat. But every config sees the SAME prompts in the same order, so
+        # that term is common to all of them and cancels in the config-to-config
+        # difference the correlation is actually fitted on. A multiple-choice outcome
+        # cannot cancel anything: it is one bit per document, and 200 of them bound the
+        # resolution no matter how the configs are paired.
+        #
+        # Two consequences worth stating in the paper rather than assuming:
+        #   * Report DIFFERENCES from the fp16 baseline, not raw NLL. The raw value is
+        #     dominated by which 100 MMLU questions were drawn at seed 0.
+        #   * The interval on those differences comes from bootstrapping PROMPTS, the
+        #     same unit bootstrap.py resamples. Do not quote a per-token standard error;
+        #     tokens within a prompt are correlated and it would be far too narrow.
+        #
+        # NLL is also the metric the causal replay uses, so the correlation here and the
+        # intervention there are directly comparable, and it costs one forward pass
+        # instead of a reload plus a full evaluation harness.
         nll = None
         if args.quality in ("nll", "both"):
             nll = mean_nll(model, tokenizer, prompts, args.max_length)
@@ -459,9 +476,9 @@ def main() -> int:
     ap.add_argument(
         "--quality", default="nll", choices=["nll", "lm_eval", "both"],
         help="How to measure quality per config. nll: one extra forward pass over the "
-             "same prompts, ~120k token positions, sensitive enough to resolve these "
-             "differences. lm_eval: task accuracy, whose standard error at practical "
-             "limits exceeds the effect size.",
+             "same prompt set every config sees, so prompt difficulty cancels in the "
+             "config-to-config difference. lm_eval: task accuracy, whose standard error "
+             "at practical limits exceeds the effect size. both: adds hours.",
     )
     ap.add_argument("--run_lm_eval", action="store_true")
     ap.add_argument("--lm_eval_tasks", nargs="+", default=["mmlu", "gsm8k", "hellaswag"])

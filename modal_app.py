@@ -329,9 +329,21 @@ def sweep(quality: str = "nll"):
     Quality is measured as NLL, not benchmark accuracy. The sweep needs to separate 15
     configs whose quality differs by fractions of a point, and MMLU at limit=200 has a
     standard error of ~3.5 points against an INT4 drop of ~1: the ranking would be noise.
-    NLL over ~120k token positions resolves the same differences at a standard error two
-    orders of magnitude smaller, and costs one forward pass per config while the model is
-    already loaded. This turns an eight-hour run into roughly one.
+
+    NLL wins on PAIRING rather than sample size. The prompt set is small -- 100 prompts,
+    at most 12,700 predicted positions -- but every config sees the same prompts in the
+    same order, so prompt difficulty is a common term that cancels in the differences the
+    correlation is fitted on. Multiple-choice outcomes cannot cancel: one bit per document,
+    and 200 documents bound the resolution however the configs are paired.
+
+    Report differences from the fp16 baseline, not raw NLL, and take intervals from
+    bootstrapping prompts (bootstrap.py), never a per-token standard error.
+
+    The saving is in evaluation work, not in anything getting faster: lm-eval on
+    mmlu+hellaswag at limit=200 is roughly 46k scored continuations per config -- MMLU is
+    57 subtasks, so the limit applies 57 times -- against 100 forward passes for NLL. What
+    remains is 15 model loads and quantizations, which is why this is about an hour rather
+    than minutes.
 
     Pass quality="both" to also run lm-eval, which restores the eight hours. Accuracy is
     worth having once, as the anchor that says what a given NLL delta means in points on
