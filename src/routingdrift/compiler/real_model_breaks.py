@@ -36,11 +36,40 @@ from typing import Any, Dict, List
 import torch
 
 
-def _explain(model, inputs) -> Any:
+def _explain(model, inputs, cache_size_limit: int = 256,
+             capture_dynamic_output_shape_ops: bool = False) -> Any:
+    """
+    Trace the model and report where the graph breaks.
+
+    cache_size_limit matters. The default is 8, and every decoder layer recompiles because
+    `self_attn.layer_idx` differs, so on a 16-layer model dynamo stops tracing partway:
+
+        torch._dynamo hit config.cache_size_limit (8)
+        last reason: L['self']._modules['self_attn'].layer_idx == 0
+
+    A break count collected under that limit is a floor, not a count. Raising it lets every
+    layer trace.
+
+    capture_dynamic_output_shape_ops is the flag dynamo itself names in the break message.
+    The routing break is `aten.nonzero.default`, whose output shape is data-dependent;
+    enabling capture lets dynamo trace it with an unbacked symbolic size instead of giving
+    up. Whether that actually removes the break is the interesting question, so it is
+    measured rather than assumed.
+    """
     import torch._dynamo as dynamo
 
     dynamo.reset()
-    return dynamo.explain(lambda **kw: model(**kw))(**inputs)
+    prev_limit = dynamo.config.cache_size_limit
+    prev_capture = getattr(dynamo.config, "capture_dynamic_output_shape_ops", None)
+    dynamo.config.cache_size_limit = cache_size_limit
+    if prev_capture is not None:
+        dynamo.config.capture_dynamic_output_shape_ops = capture_dynamic_output_shape_ops
+    try:
+        return dynamo.explain(lambda **kw: model(**kw))(**inputs)
+    finally:
+        dynamo.config.cache_size_limit = prev_limit
+        if prev_capture is not None:
+            dynamo.config.capture_dynamic_output_shape_ops = prev_capture
 
 
 def _op_weighted_fraction(explanation: Any) -> Dict[str, Any]:
@@ -122,7 +151,7 @@ def analyse(model_name: str, revision: str | None, seq_len: int, output_dir: Pat
     inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=seq_len)
 
     print("[breaks] running torch._dynamo.explain on the real checkpoint ...")
-    explanation = _explain(model, dict(inputs))
+    explanation = _explain(model, dict(inputs), cache_size_limit=256)
 
     break_count = int(getattr(explanation, "graph_break_count", 0) or 0)
     graph_count = int(getattr(explanation, "graph_count", 0) or 0)
@@ -173,6 +202,34 @@ def analyse(model_name: str, revision: str | None, seq_len: int, output_dir: Pat
             print(f"           {n:>3}x {loc}")
     for r in reasons[:5]:
         print(f"           reason: {r['reason'][:100]}")
+
+    # Does the flag dynamo suggests actually remove the break? This is the actionable
+    # half of the finding: "MoE breaks compilation" is a description, "and here is the
+    # config that does or does not fix it" is a result.
+    print("\n[breaks] retrying with capture_dynamic_output_shape_ops=True ...")
+    try:
+        with_capture = _explain(model, dict(inputs), cache_size_limit=256,
+                                capture_dynamic_output_shape_ops=True)
+        captured_breaks = int(getattr(with_capture, "graph_break_count", 0) or 0)
+        result["breaks_with_dynamic_capture"] = captured_breaks
+        result["dynamic_capture_reasons"] = _break_reasons(with_capture)[:5]
+        removed = break_count - captured_breaks
+        print(f"[breaks] with capture : {captured_breaks} breaks "
+              f"({removed} of {break_count} removed)")
+        if captured_breaks == 0:
+            print("[breaks] -> the routing break is REMOVABLE by a config flag, so it is")
+            print("            not a structural limitation of MoE routing as the paper")
+            print("            frames it. CAVEAT: fewer breaks is not the same as faster.")
+            print("            Unbacked symbolic shapes can generate worse code, so this")
+            print("            needs a latency measurement before being called a win.")
+        elif captured_breaks < break_count:
+            print("[breaks] -> partially removable; the remainder has another cause.")
+        else:
+            print("[breaks] -> the flag does not help; the break is structural after all.")
+        result["breaks_removed_by_dynamic_capture"] = removed
+    except Exception as exc:  # noqa: BLE001 - the flag is version-dependent
+        result["breaks_with_dynamic_capture"] = f"unavailable: {type(exc).__name__}: {exc}"
+        print(f"[breaks] capture retry failed: {exc}")
 
     (output_dir / "real_model_graph_breaks.json").write_text(
         json.dumps(result, indent=2, default=str), encoding="utf-8"
