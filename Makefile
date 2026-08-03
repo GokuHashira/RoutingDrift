@@ -61,8 +61,10 @@ pull-results:
 	@# modal volume get refuses to write into a directory that already exists, so pull
 	@# into a temp and swap only on success -- a failed pull then cannot destroy the
 	@# copy from the previous one.
-	rm -rf results_modal.partial
-	modal volume get routingdrift-results / results_modal.partial
+	rm -rf results_modal.partial && mkdir -p results_modal.partial
+	@# '**' is the recursive form. A remote path of '/' makes modal treat the local
+	@# destination as a single file target and fail with "Is a directory".
+	modal volume get routingdrift-results '**' results_modal.partial
 	rm -rf results_modal && mv results_modal.partial results_modal
 	@echo
 	@du -sh results_modal/* 2>/dev/null || true
