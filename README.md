@@ -46,19 +46,44 @@ make cpu-smoke                   # runs the whole drift pipeline on a tiny model
 
 We wrote hand-tuned Triton kernels for two ops that show up in every layer of both models: **RMSNorm** and the routing **Softmax**. The idea was to fuse the two-pass variance + normalize computation for RMSNorm into a single kernel pass, and do the same for the row-wise softmax over expert gate logits.
 
-In isolation, the kernels are genuinely fast:
+In isolation, the kernels are fast:
 
-| Op       | Config                  | Baseline   | Kernel     | Speedup  | Bandwidth  |
-|----------|-------------------------|------------|------------|----------|------------|
-| RMSNorm  | hidden=512              | 0.072 ms   | 0.013 ms   | **5.7x** | 501 GB/s   |
-| RMSNorm  | hidden=2048             | 0.142 ms   | 0.019 ms   | **7.3x** | 1300 GB/s  |
-| RMSNorm  | hidden=4096             | 0.303 ms   | 0.033 ms   | **9.2x** | 1521 GB/s  |
-| Softmax  | OLMoE (64 experts)      | 0.017 ms   | 0.009 ms   | **2.0x** | 61 GB/s    |
-| Softmax  | Mixtral (8 experts)     | 0.017 ms   | 0.008 ms   | **2.2x** | 9 GB/s     |
+| Op       | Config                  | Baseline   | Kernel     | Speedup  |
+|----------|-------------------------|------------|------------|----------|
+| RMSNorm  | hidden=512              | 0.058 ms   | 0.010 ms   | **5.62x** |
+| RMSNorm  | hidden=1024             | 0.076 ms   | 0.013 ms   | **5.72x** |
+| RMSNorm  | hidden=2048             | 0.136 ms   | 0.019 ms   | **7.27x** |
+| RMSNorm  | hidden=4096             | 0.279 ms   | 0.031 ms   | **8.98x** |
+| Softmax  | OLMoE (64 experts)      | 0.017 ms   | 0.009 ms   | **2.01x** |
+| Softmax  | Mixtral (8 experts)     | 0.017 ms   | 0.008 ms   | **2.15x** |
 
-The catch is Amdahl's Law. RMSNorm is a low single-digit percentage of OLMoE's forward pass, and Softmax is basically nothing. (The exact fraction our profiler reports is not trustworthy: it attributes RMSNorm time by keyword-matching generic elementwise kernels, which both over-counts a residual add and misses the variance reduction. The conclusion survives because the true fraction is genuinely tiny; the specific number does not.) Even a 7.3x isolated speedup gives a predicted E2E ceiling around **1.015x**. The measured E2E confirms it: OLMoE with Triton kernels runs at **0.985x** baseline at seq=512 batch=4, because the kernel's launch overhead doesn't amortize at small batch sizes.
+How much of the forward pass do those ops occupy? Measured by wrapping the real modules in
+`record_function` ranges, over 81 wrapped modules:
 
-**Bottom line:** the kernels are correct and memory-efficient. The E2E ceiling is set by Amdahl, not kernel quality.
+| Op | Share of forward pass |
+|---|---:|
+| RMSNorm | **7.70%** |
+| Router softmax | **0.17%** |
+
+**That RMSNorm figure is four times larger than this project previously reported.** The
+earlier 1.91% came from string-matching CUDA kernel names, which missed the variance
+reduction because it is not an elementwise kernel, and reported softmax as exactly 0.00%
+because it scanned only the top 15 ops. The other reason it was low: OLMoE applies
+**QK-norm**, so each layer holds four RMSNorm modules rather than two, 65 in total. A
+keyword matcher was never going to find them all.
+
+With the measured fraction, Amdahl's ceiling is **1.07x**, not the 1.015x previously
+claimed.
+
+**Bottom line, and it is now less settled than it was.** The recorded end-to-end result is
+**0.985x** at seq=512, batch=4. Against a 1.07x ceiling that is roughly eight points of
+headroom the integration is not capturing, which is a different conclusion from
+"Amdahl-bound, nothing to gain". The two numbers come from different hardware and
+different shapes, though, so the gap is not yet established: an end-to-end re-measurement
+under the same conditions as the profiling is needed before claiming it. If it holds, the
+lesson is the same one the Mixtral result teaches in a louder voice, that integration
+overhead rather than kernel quality is what governs whether a fast kernel helps.
+
 
 ---
 
@@ -330,7 +355,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Key Findings
 
-1. **Isolated kernel speedups do not survive Amdahl's Law.** Fused RMSNorm reaches 5.7x to 9.2x in a microbenchmark, but the ops it targets are a low single-digit percentage of the forward pass, so end-to-end lands within noise of 1.0x (0.985x at seq=512, batch=4). Kernel launch overhead consumes the rest at small batch.
+1. **The Amdahl ceiling is higher than reported, and the kernels are not reaching it.** Fused RMSNorm reaches 5.6x to 9.0x in isolation. Measured by module rather than by kernel-name matching, RMSNorm is **7.70%** of the forward pass and the router softmax 0.17%, giving a ceiling of **1.07x** rather than the 1.015x previously claimed. Recorded end-to-end is 0.985x. The gap is not yet established, since those two numbers come from different hardware and shapes, but if it holds the limit is integration overhead rather than Amdahl.
 
 2. **A correct kernel can still be catastrophic to integrate.** On Mixtral-GPTQ the patched model ran 17x to 59x slower, and profiling shows 74.8% of runtime in host-device memory copies: monkey-patching modules inside the auto-gptq/accelerate runtime broke its device-placement hooks. The kernel never touched the packed INT4 weights. The failure was integration, not arithmetic.
 
@@ -348,7 +373,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 - **Two distinct drift values.** Three precisions give two non-trivial points, and any two points lie on a line. The correlation reported is a direction, not a result.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **No error bars on drift.** Single prompt set, no seed sweep, no bootstrap.
-- **Kernel timing numbers predate the profiling fix.** The reported Amdahl fraction came from string-matching CUDA kernel names, which counted a residual add as RMSNorm, missed the variance reduction, and reported softmax as exactly 0.00% because it scanned only the top 15 ops. Attribution now uses `record_function` ranges around the real modules; the figures above are pending that re-measurement.
+- **End-to-end kernel timing has not been re-measured.** The op fractions are now measured by module, but the 0.985x end-to-end figure predates that and was taken on different hardware at different shapes, so the apparent gap against the 1.07x ceiling is suggestive rather than established.
 - **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
 - **Compiler latency is unmeasured.** The graph-break counts are real; the claim that removing them helps is not made.
 
