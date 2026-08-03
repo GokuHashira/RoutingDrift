@@ -45,6 +45,7 @@ class QuantConfigSpec:
     # Layers to leave in FP16, resolved against the model at load time. `None` means
     # "quantize everything".
     quantize_first_n_layers: Optional[int] = None
+    lever: str = ""
     # Leave the ROUTER modules themselves in FP16 while quantizing everything else.
     #
     # This is the control that decomposes drift into its two mechanisms. Every other config
@@ -52,8 +53,14 @@ class QuantConfigSpec:
     # it have already passed through quantized layers. Exempting the router isolates the
     # second, and the difference against the matching full-quantization config is the
     # first.
+    #
+    # Declared AFTER `lever` deliberately. Existing entries pass lever as the FIFTH
+    # POSITIONAL argument, e.g. QuantConfigSpec(..., _fourbit(...), 2, "layer_coverage"),
+    # so inserting a field ahead of it silently rebinds those strings to the wrong
+    # parameter. It did: the first version of this field sat between
+    # quantize_first_n_layers and lever, and every router-exemption config raised
+    # "got multiple values for argument 'exempt_routers'". Append new fields here.
     exempt_routers: bool = False
-    lever: str = ""
 
 
 def _int8(threshold: float) -> Callable[[], BitsAndBytesConfig]:
