@@ -60,12 +60,39 @@ from typing import Dict, List
 
 
 def _read_summary(results_dir: Path) -> Dict[str, dict]:
-    """Load routing_drift_summary.csv keyed by variant."""
+    """
+    Load per-variant drift metrics, preferring routing_drift_summary.csv.
+
+    Falls back to drift_bootstrap_ci.csv, which carries the same four metrics computed
+    from the raw route dumps. The fallback exists because a run can produce every number
+    and still fail to write its summary: the Qwen run measured all three precisions, then
+    died in save_summary_csv on a fieldname mismatch, leaving a summary with only the
+    fp16 row beside three complete route dumps.
+
+    Recomputing from the dumps is the project's stated reproducibility guarantee, so a
+    half-written summary should not make a finished run unusable.
+    """
     path = results_dir / "routing_drift_summary.csv"
-    if not path.is_file():
-        raise FileNotFoundError(f"no routing_drift_summary.csv in {results_dir}")
-    with path.open(encoding="utf-8") as f:
-        return {row["variant"]: row for row in csv.DictReader(f)}
+    rows: Dict[str, dict] = {}
+    if path.is_file():
+        with path.open(encoding="utf-8") as f:
+            rows = {row["variant"]: row for row in csv.DictReader(f)}
+
+    # A summary holding only the baseline is not a summary. Same test for a missing file.
+    if len([v for v in rows if v != "fp16"]) == 0:
+        ci_path = results_dir / "drift_bootstrap_ci.csv"
+        if not ci_path.is_file():
+            raise FileNotFoundError(
+                f"{results_dir} has no usable drift metrics: routing_drift_summary.csv is "
+                f"absent or baseline-only, and there is no drift_bootstrap_ci.csv to fall "
+                f"back on. Run bootstrap.py against the route dumps first."
+            )
+        with ci_path.open(encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                rows[row["variant"]] = row
+        print(f"[compare] {results_dir.name}: summary was baseline-only, using "
+              f"drift_bootstrap_ci.csv (recomputed from route dumps)")
+    return rows
 
 
 def _read_ci(results_dir: Path) -> Dict[str, dict]:
