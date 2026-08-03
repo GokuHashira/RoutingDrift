@@ -1,0 +1,96 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name Qwen/Qwen3-30B-A3B-Base --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/qwen3_30b_a3b --top_k 8 --max_length 128 --seed 0 --skip_heatmaps --measure_nll --resume",
+  "config": {
+    "compiler_modes": [],
+    "lm_eval_limit": null,
+    "lm_eval_num_fewshot": null,
+    "lm_eval_tasks": null,
+    "max_length": 128,
+    "precisions": [
+      "fp16",
+      "int8",
+      "int4"
+    ],
+    "prompt_count": 100,
+    "prompts_file": "/results/mmlu_prompts.txt",
+    "requested_revision": null,
+    "run_lm_eval": false,
+    "target_module": [
+      "mlp.gate"
+    ],
+    "top_k": 8
+  },
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "8aa089dca48ac42b1e43833200cb105de96296fa",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100-SXM4-80GB",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "guards": {
+    "all_variants_deterministic": null,
+    "baseline_self_consistency_rs": 1.0,
+    "determinism_by_variant": {},
+    "determinism_check": null
+  },
+  "log_file": "/results/qwen3_30b_a3b/logs/run_experiment_20260803T164745Z.log",
+  "model_name": "Qwen/Qwen3-30B-A3B-Base",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.57.6",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "seeding": {
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "deterministic_requested": true,
+    "matmul_allow_tf32": false,
+    "seed": 0,
+    "use_deterministic_algorithms": "True (warn_only)"
+  },
+  "status": "completed",
+  "timestamp_utc": "2026-08-03T17:28:27.707363+00:00",
+  "variants": {
+    "fp16": {
+      "nll": 1.9914293624282264,
+      "precision": "fp16",
+      "resolved_revision": "1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9",
+      "resumed_from": "/results/qwen3_30b_a3b/routes_fp16.json.gz"
+    },
+    "int4": {
+      "nll": 2.0495333646747773,
+      "precision": "int4",
+      "resolved_revision": "1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9",
+      "resumed_from": "/results/qwen3_30b_a3b/routes_int4.json.gz"
+    },
+    "int8": {
+      "nll": 1.9965465448324893,
+      "precision": "int8",
+      "resolved_revision": "1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9",
+      "resumed_from": "/results/qwen3_30b_a3b/routes_int8.json.gz"
+    }
+  }
+}

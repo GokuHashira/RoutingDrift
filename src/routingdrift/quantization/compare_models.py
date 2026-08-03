@@ -168,6 +168,11 @@ def main() -> int:
                 "jaccard_per_single_swap": round(jaccard_for_one_swap(top_k), 6),
                 "swaps_ci_low": "",
                 "swaps_ci_high": "",
+                # Quality, when the run measured it. run_experiment writes these only with
+                # --measure_nll, and the bootstrap CI file does not carry them at all, so a
+                # model recovered through that fallback has drift without quality.
+                "nll": row.get("nll", ""),
+                "nll_delta_vs_baseline": row.get("nll_delta_vs_baseline", ""),
             }
             ci = cis.get(variant)
             if ci:
@@ -188,16 +193,18 @@ def main() -> int:
         print(f"    {name:<12} top-{top_k}  ->  jaccard drift {jaccard_for_one_swap(top_k):.4f}")
     print("\nUse swapped_experts_per_token, which carries no k.\n")
 
-    header = (f"{'model':<12} {'variant':<8} {'k':>3} {'jaccard':>9} {'sel.shift':>10} "
-              f"{'swaps/tok':>10} {'95% CI':>20}")
+    header = (f"{'model':<12} {'variant':<8} {'k':>3} {'jaccard':>9} "
+              f"{'swaps/tok':>10} {'95% CI':>20} {'dNLL':>9}")
     print(header)
     print("-" * len(header))
     for r in rows:
         ci = ("" if r["swaps_ci_low"] == ""
               else f"[{r['swaps_ci_low']:.4f}, {r['swaps_ci_high']:.4f}]")
+        dn = r["nll_delta_vs_baseline"]
+        dn_s = f"{float(dn):+.4f}" if dn not in ("", None) else "n/a"
         print(f"{r['model']:<12} {r['variant']:<8} {r['top_k']:>3} "
-              f"{r['jaccard_drift']:>9.4f} {r['selection_shift']:>10.4f} "
-              f"{r['swapped_experts_per_token']:>10.4f} {ci:>20}")
+              f"{r['jaccard_drift']:>9.4f} "
+              f"{r['swapped_experts_per_token']:>10.4f} {ci:>20} {dn_s:>9}")
 
     # Where the correction changes the conclusion, say so explicitly rather than leaving
     # it for a reader to notice -- and only call a gap real if the intervals allow it.
@@ -243,6 +250,36 @@ def main() -> int:
             writer.writeheader()
             writer.writerows(rows)
         print(f"\n[Saved] {out}")
+
+    # The cross-model drift-to-quality relationship, which is NOT the within-model one.
+    # Stated explicitly because a reader who has just seen drift correlate with NLL at
+    # +0.919 across quantization configurations will assume it generalises, and on the
+    # models measured here it does not.
+    for variant, group in sorted(by_variant.items()):
+        withq = [r for r in group if r["nll_delta_vs_baseline"] not in ("", None)]
+        if len(withq) < 2:
+            if group:
+                have = sum(1 for r in group if r["nll_delta_vs_baseline"] not in ("", None))
+                print(f"\n  {variant}: quality measured for {have} of {len(group)} models; "
+                      f"cross-model drift-vs-quality not testable. Re-run the missing ones "
+                      f"with --measure_nll --resume.")
+            continue
+        worst_drift = max(withq, key=lambda r: r["swapped_experts_per_token"])
+        worst_qual = max(withq, key=lambda r: float(r["nll_delta_vs_baseline"]))
+        print(f"\n  {variant}: most routing churn is {worst_drift['model']} "
+              f"({worst_drift['swapped_experts_per_token']:.3f} swaps/tok), "
+              f"most quality loss is {worst_qual['model']} "
+              f"({float(worst_qual['nll_delta_vs_baseline']):+.4f} NLL)")
+        if worst_drift["model"] != worst_qual["model"]:
+            print(f"           THESE DISAGREE. Across models, more drift does not mean more")
+            print(f"           damage. Consistent with the replay result that routing")
+            print(f"           explains ~3% of degradation: dNLL is dominated by weight")
+            print(f"           error, which scales with the model, not with its routing.")
+            print(f"           Drift is a WITHIN-model instrument. Do not read the")
+            print(f"           within-model correlation as a cross-model prediction.")
+        else:
+            print(f"           Same model on both, so the cross-model ordering is at least")
+            print(f"           consistent here. Two or three points cannot establish more.")
 
     print("\nCaveat that must travel with this table: the gates are not quantized alike.")
     print("OLMoE's gate is nn.Linear and IS quantized; DeepSeek's MoEGate is a raw")

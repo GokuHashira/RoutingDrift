@@ -1,0 +1,253 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name Qwen/Qwen3-30B-A3B-Base --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/qwen3_30b_a3b --top_k 8 --max_length 128 --seed 0 --skip_heatmaps
+# started : 2026-08-03T05:36:26.312586+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/qwen3_30b_a3b/logs/run_experiment_20260803T053626Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/qwen3_30b_a3b/prompts_used.txt
+[Saved] /results/qwen3_30b_a3b/run_manifest.json
+
+========== Loading variant: fp16 ==========
+2026-08-03:05:36:31,616 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+2026-08-03:05:36:31,738 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:31,739 WARNING  [_http.py:951] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-08-03:05:36:31,745 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:31,768 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:31,911 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:31,918 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:31,937 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,080 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:32,204 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,332 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/vocab.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:32,339 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/vocab.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,359 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/vocab.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,520 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/merges.txt "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:32,526 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/merges.txt "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,545 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/merges.txt "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,688 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/tokenizer.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:32,695 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,713 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:32,912 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/added_tokens.json "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:33,045 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/special_tokens_map.json "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:33,178 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/chat_template.jinja "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:33,849 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base "HTTP/1.1 200 OK"
+2026-08-03:05:36:33,970 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:33,976 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:34,104 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:34,249 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:34,256 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:34,383 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/model.safetensors "HTTP/1.1 404 Not Found"
+2026-08-03:05:36:34,514 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/model.safetensors.index.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:36:34,521 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/model.safetensors.index.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:34,539 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/model.safetensors.index.json "HTTP/1.1 200 OK"
+2026-08-03:05:36:34,720 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/revision/main "HTTP/1.1 200 OK"
+2026-08-03:05:36:34,843 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/tree/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9?recursive=true&expand=false "HTTP/1.1 200 OK"
+Fetching 16 files:   0%|          | 0/16 [00:00<?, ?it/s]Fetching 16 files:   6%|6         | 1/16 [01:05<16:28, 65.91s/it]Fetching 16 files:  12%|#2        | 2/16 [01:16<07:43, 33.11s/it]Fetching 16 files:  19%|#8        | 3/16 [01:21<04:28, 20.69s/it]Fetching 16 files:  25%|##5       | 4/16 [01:27<02:57, 14.80s/it]Fetching 16 files:  31%|###1      | 5/16 [01:32<02:01, 11.08s/it]Fetching 16 files:  38%|###7      | 6/16 [01:35<01:23,  8.39s/it]Fetching 16 files:  44%|####3     | 7/16 [01:35<00:51,  5.77s/it]Fetching 16 files:  50%|#####     | 8/16 [01:58<01:28, 11.04s/it]Fetching 16 files:  56%|#####6    | 9/16 [02:22<01:46, 15.21s/it]Fetching 16 files:  62%|######2   | 10/16 [02:31<01:20, 13.45s/it]Fetching 16 files:  69%|######8   | 11/16 [02:37<00:55, 11.11s/it]Fetching 16 files:  75%|#######5  | 12/16 [02:50<00:45, 11.48s/it]Fetching 16 files:  81%|########1 | 13/16 [02:51<00:25,  8.56s/it]Fetching 16 files:  88%|########7 | 14/16 [02:57<00:15,  7.71s/it]Fetching 16 files:  94%|#########3| 15/16 [02:59<00:05,  5.95s/it]Fetching 16 files: 100%|##########| 16/16 [03:01<00:00,  4.84s/it]Fetching 16 files: 100%|##########| 16/16 [03:01<00:00, 11.36s/it]
+Loading weights:   0%|          | 0/531 [00:00<?, ?it/s]Loading weights:   1%|          | 4/531 [00:00<01:10,  7.53it/s]Loading weights:   3%|2         | 15/531 [00:00<00:28, 18.22it/s]Loading weights:   5%|4         | 26/531 [00:01<00:21, 23.48it/s]Loading weights:   7%|6         | 37/531 [00:01<00:17, 27.93it/s]Loading weights:   9%|9         | 48/531 [00:01<00:16, 29.27it/s]Loading weights:  11%|#1        | 59/531 [00:02<00:15, 30.16it/s]Loading weights:  13%|#3        | 70/531 [00:02<00:14, 31.82it/s]Loading weights:  15%|#5        | 81/531 [00:02<00:13, 32.56it/s]Loading weights:  17%|#7        | 92/531 [00:03<00:13, 32.60it/s]Loading weights:  19%|#9        | 103/531 [00:03<00:12, 33.18it/s]Loading weights:  21%|##1       | 114/531 [00:03<00:12, 34.06it/s]Loading weights:  24%|##3       | 125/531 [00:04<00:11, 34.06it/s]Loading weights:  26%|##5       | 136/531 [00:04<00:11, 33.90it/s]Loading weights:  28%|##7       | 147/531 [00:04<00:11, 33.84it/s]Loading weights:  30%|##9       | 158/531 [00:05<00:11, 33.88it/s]Loading weights:  32%|###1      | 169/531 [00:05<00:10, 33.64it/s]Loading weights:  34%|###3      | 180/531 [00:05<00:10, 33.48it/s]Loading weights:  36%|###5      | 191/531 [00:06<00:10, 32.57it/s]Loading weights:  38%|###8      | 202/531 [00:06<00:10, 32.01it/s]Loading weights:  40%|####      | 213/531 [00:06<00:10, 31.30it/s]Loading weights:  42%|####2     | 224/531 [00:07<00:09, 31.27it/s]Loading weights:  44%|####4     | 235/531 [00:07<00:09, 31.01it/s]Loading weights:  46%|####6     | 246/531 [00:08<00:09, 29.50it/s]Loading weights:  48%|####8     | 257/531 [00:08<00:09, 30.25it/s]Loading weights:  50%|#####     | 268/531 [00:08<00:08, 30.44it/s]Loading weights:  53%|#####2    | 279/531 [00:09<00:08, 29.98it/s]Loading weights:  55%|#####4    | 290/531 [00:09<00:08, 29.86it/s]Loading weights:  57%|#####6    | 301/531 [00:09<00:07, 30.38it/s]Loading weights:  59%|#####8    | 312/531 [00:10<00:07, 31.13it/s]Loading weights:  61%|######    | 323/531 [00:10<00:06, 32.07it/s]Loading weights:  63%|######2   | 334/531 [00:10<00:06, 32.46it/s]Loading weights:  65%|######4   | 345/531 [00:11<00:05, 32.90it/s]Loading weights:  67%|######7   | 356/531 [00:11<00:05, 33.66it/s]Loading weights:  69%|######9   | 367/531 [00:11<00:05, 32.61it/s]Loading weights:  71%|#######1  | 378/531 [00:12<00:04, 32.60it/s]Loading weights:  73%|#######3  | 389/531 [00:12<00:04, 31.96it/s]Loading weights:  75%|#######5  | 400/531 [00:12<00:04, 31.97it/s]Loading weights:  77%|#######7  | 411/531 [00:13<00:03, 32.48it/s]Loading weights:  79%|#######9  | 422/531 [00:13<00:03, 32.78it/s]Loading weights:  82%|########1 | 433/531 [00:13<00:02, 33.63it/s]Loading weights:  84%|########3 | 444/531 [00:14<00:02, 33.62it/s]Loading weights:  86%|########5 | 455/531 [00:14<00:02, 33.43it/s]Loading weights:  88%|########7 | 466/531 [00:14<00:01, 33.82it/s]Loading weights:  90%|########9 | 477/531 [00:15<00:01, 32.67it/s]Loading weights:  92%|#########1| 488/531 [00:15<00:01, 32.07it/s]Loading weights:  94%|#########3| 499/531 [00:15<00:00, 32.20it/s]Loading weights:  96%|#########6| 510/531 [00:16<00:00, 31.87it/s]Loading weights:  98%|#########8| 521/531 [00:16<00:00, 30.87it/s]Loading weights: 100%|##########| 531/531 [00:16<00:00, 32.00it/s]
+2026-08-03:05:40:01,658 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:40:01,665 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/generation_config.json "HTTP/1.1 200 OK"
+2026-08-03:05:40:01,682 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/generation_config.json "HTTP/1.1 200 OK"
+2026-08-03:05:40:01,860 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/custom_generate/generate.py "HTTP/1.1 404 Not Found"
+[load] quantized modules: 0 of 193 Linear (model is unquantized)
+
+========== Collecting routes for fp16 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.27.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.28.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.29.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.30.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.31.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.32.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.33.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.34.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.35.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.36.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.37.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.38.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.39.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.40.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.41.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.42.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.43.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.44.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.45.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.46.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.47.mlp.gate
+[RoutingLogger] 48 router hooks attached (num_experts=128, top_k=8)
+[collect_routes] Prompt 1/100
+/usr/local/lib/python3.11/site-packages/transformers/integrations/moe.py:408: UserWarning: _histc_cuda does not have a deterministic implementation, but you set 'torch.use_deterministic_algorithms(True, warn_only=True)'. You can file an issue at https://github.com/pytorch/pytorch/issues to help us prioritize adding deterministic support for this operation. (Triggered internally at ../aten/src/ATen/Context.cpp:91.)
+  tokens_per_expert = torch.histc(histc_input, bins=self.num_experts, min=0, max=self.num_experts - 1)
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 48 modules, 365568 token rows total
+
+========== Determinism re-run for fp16 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/qwen3_30b_a3b/routes_fp16.json.gz
+
+========== Loading variant: int8 ==========
+2026-08-03:05:44:12,366 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:44:12,372 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:44:12,502 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:44:12,508 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-08-03:05:44:12,673 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-08-03:05:44:12,818 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-08-03:05:44:13,337 INFO     [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-30B-A3B-Base "HTTP/1.1 200 OK"
+2026-08-03:05:44:13,459 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:44:13,465 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+2026-08-03:05:44:13,596 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-30B-A3B-Base/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-03:05:44:13,602 INFO     [_client.py:1025] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-30B-A3B-Base/1b75feb79f60b8dc6c5bc769a898c206a1c6a4f9/config.json "HTTP/1.1 200 OK"
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 790, in <module>
+    main()
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 751, in main
+    all_routes, variant_to_precision, variant_info = _collect_variants(args, prompts, output_dir)
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 518, in _collect_variants
+    routes, info = run_for_precision(
+                   ^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 165, in run_for_precision
+    model, tokenizer = load_model(model_name=model_name, precision=precision, revision=revision)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/model_loader.py", line 186, in load_model
+    model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/auto/auto_factory.py", line 402, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4332, in from_pretrained
+    hf_quantizer, config, device_map = get_hf_quantizer(
+                                       ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/quantizers/auto.py", line 354, in get_hf_quantizer
+    hf_quantizer.validate_environment(
+  File "/usr/local/lib/python3.11/site-packages/transformers/quantizers/quantizer_bnb_8bit.py", line 62, in validate_environment
+    raise ImportError(
+ImportError: Using `bitsandbytes` 8-bit quantization requires bitsandbytes: `pip install -U bitsandbytes>=0.46.1`
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T05:44:13.696517+00:00

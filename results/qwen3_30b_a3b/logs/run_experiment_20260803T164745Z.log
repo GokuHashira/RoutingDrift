@@ -1,0 +1,62 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name Qwen/Qwen3-30B-A3B-Base --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/qwen3_30b_a3b --top_k 8 --max_length 128 --seed 0 --skip_heatmaps --measure_nll --resume
+# started : 2026-08-03T16:47:45.520914+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/qwen3_30b_a3b/logs/run_experiment_20260803T164745Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/qwen3_30b_a3b/prompts_used.txt
+[Saved] /results/qwen3_30b_a3b/run_manifest.json
+
+========== REUSING fp16 from routes_fp16.json.gz (48 modules, 365568 rows) ==========
+
+========== Loading variant: fp16 ==========
+2026-08-03:16:47:56,677 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:05<01:19,  5.28s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:10<01:17,  5.53s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:16<01:10,  5.45s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:21<01:03,  5.29s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:27<01:00,  5.47s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:32<00:55,  5.56s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:38<00:50,  5.65s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:44<00:45,  5.67s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:50<00:40,  5.82s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:56<00:35,  5.94s/it]Loading checkpoint shards:  69%|######8   | 11/16 [01:02<00:29,  5.92s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [01:08<00:23,  5.99s/it]Loading checkpoint shards:  81%|########1 | 13/16 [01:15<00:18,  6.07s/it]Loading checkpoint shards:  88%|########7 | 14/16 [01:21<00:12,  6.10s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:27<00:06,  6.15s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:28<00:00,  4.69s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:28<00:00,  5.55s/it]
+[load] quantized modules: 0 of 18673 Linear (model is unquantized)
+
+========== NLL for fp16 ==========
+[nll] fp16: 1.991429
+[Saved] unchanged, reused /results/qwen3_30b_a3b/routes_fp16.json.gz
+
+========== REUSING int8 from routes_int8.json.gz (48 modules, 365568 rows) ==========
+
+========== Loading variant: int8 ==========
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:03<00:47,  3.16s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:06<00:44,  3.15s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:09<00:41,  3.18s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:12<00:38,  3.20s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:15<00:34,  3.15s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:19<00:31,  3.17s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:22<00:28,  3.18s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:26<00:29,  3.64s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:35<00:36,  5.27s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:46<00:42,  7.01s/it]Loading checkpoint shards:  69%|######8   | 11/16 [00:57<00:41,  8.28s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [01:09<00:37,  9.25s/it]Loading checkpoint shards:  81%|########1 | 13/16 [01:18<00:28,  9.34s/it]Loading checkpoint shards:  88%|########7 | 14/16 [01:27<00:18,  9.11s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:35<00:08,  8.71s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:36<00:00,  6.46s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:36<00:00,  6.02s/it]
+[load] quantized modules: 18672 of 18673 Linear [Linear8bitLt=18672]; 48 layers touched, layers 0-47
+
+========== NLL for int8 ==========
+[nll] int8: 1.996547
+[Saved] unchanged, reused /results/qwen3_30b_a3b/routes_int8.json.gz
+
+========== REUSING int4 from routes_int4.json.gz (48 modules, 365568 rows) ==========
+
+========== Loading variant: int4 ==========
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:03<00:53,  3.56s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:07<00:55,  3.94s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:11<00:52,  4.01s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:15<00:48,  4.03s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:19<00:44,  4.04s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:24<00:41,  4.11s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:29<00:40,  4.44s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:33<00:34,  4.33s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:37<00:30,  4.29s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:41<00:25,  4.26s/it]Loading checkpoint shards:  69%|######8   | 11/16 [00:46<00:21,  4.31s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [00:50<00:17,  4.32s/it]Loading checkpoint shards:  81%|########1 | 13/16 [00:54<00:12,  4.24s/it]Loading checkpoint shards:  88%|########7 | 14/16 [01:00<00:09,  4.62s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:05<00:04,  4.77s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:06<00:00,  3.61s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:06<00:00,  4.14s/it]
+[load] quantized modules: 18672 of 18673 Linear [Linear4bit=18672]; 48 layers touched, layers 0-47
+
+========== NLL for int4 ==========
+[nll] int4: 2.049533
+[Saved] unchanged, reused /results/qwen3_30b_a3b/routes_int4.json.gz
+[guard] baseline-vs-baseline RS = 1.0000000000 (expected 1.0)
+
+Research Metrics int8 vs fp16
+  Routing similarity RS : 0.9310
+  Jaccard routing drift : 0.0690
+  Overlap@k             : 0.9604
+  Selection shift       : 0.0396
+
+Research Metrics int4 vs fp16
+  Routing similarity RS : 0.8343
+  Jaccard routing drift : 0.1657
+  Overlap@k             : 0.9005
+  Selection shift       : 0.0995
+
+[Saved] /results/qwen3_30b_a3b/routing_drift_summary.csv
+[Saved] /results/qwen3_30b_a3b/routing_drift_layers.csv
+[Saved] /results/qwen3_30b_a3b/summary.md
+[Saved] /results/qwen3_30b_a3b/run_manifest.json
+
+[Done] Results in /results/qwen3_30b_a3b   Log: /results/qwen3_30b_a3b/logs/run_experiment_20260803T164745Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T17:28:27.731258+00:00

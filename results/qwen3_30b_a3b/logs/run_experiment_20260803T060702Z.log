@@ -1,0 +1,531 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name Qwen/Qwen3-30B-A3B-Base --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/qwen3_30b_a3b --top_k 8 --max_length 128 --seed 0 --skip_heatmaps --measure_nll
+# started : 2026-08-03T06:07:02.238497+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/qwen3_30b_a3b/logs/run_experiment_20260803T060702Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/qwen3_30b_a3b/prompts_used.txt
+[Saved] /results/qwen3_30b_a3b/run_manifest.json
+
+========== Loading variant: fp16 ==========
+2026-08-03:06:07:11,289 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:05<01:20,  5.35s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:10<01:15,  5.41s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:16<01:10,  5.39s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:21<01:04,  5.39s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:26<00:59,  5.39s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:31<00:51,  5.10s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:36<00:46,  5.14s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:42<00:41,  5.24s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:47<00:37,  5.30s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:53<00:32,  5.40s/it]Loading checkpoint shards:  69%|######8   | 11/16 [00:58<00:27,  5.47s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [01:04<00:22,  5.51s/it]Loading checkpoint shards:  81%|########1 | 13/16 [01:09<00:16,  5.37s/it]Loading checkpoint shards:  88%|########7 | 14/16 [01:14<00:10,  5.34s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:20<00:05,  5.42s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:21<00:00,  4.13s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:21<00:00,  5.09s/it]
+[load] quantized modules: 0 of 18673 Linear (model is unquantized)
+
+========== Collecting routes for fp16 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.27.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.28.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.29.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.30.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.31.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.32.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.33.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.34.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.35.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.36.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.37.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.38.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.39.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.40.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.41.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.42.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.43.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.44.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.45.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.46.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.47.mlp.gate
+[RoutingLogger] 48 router hooks attached (num_experts=128, top_k=8)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 48 modules, 365568 token rows total
+
+========== Determinism re-run for fp16 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+
+========== NLL for fp16 ==========
+[nll] fp16: 1.991429
+[Saved] /results/qwen3_30b_a3b/routes_fp16.json.gz
+
+========== Loading variant: int8 ==========
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:02<00:37,  2.52s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:05<00:40,  2.86s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:08<00:38,  3.00s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:11<00:36,  3.08s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:14<00:32,  2.95s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:17<00:29,  2.90s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:20<00:25,  2.88s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:23<00:22,  2.87s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:30<00:29,  4.19s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:37<00:31,  5.27s/it]Loading checkpoint shards:  69%|######8   | 11/16 [00:44<00:27,  5.57s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [00:51<00:24,  6.14s/it]Loading checkpoint shards:  81%|########1 | 13/16 [00:58<00:19,  6.49s/it]Loading checkpoint shards:  88%|########7 | 14/16 [01:05<00:13,  6.59s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:13<00:06,  6.85s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:14<00:00,  5.12s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:14<00:00,  4.65s/it]
+[load] quantized modules: 18672 of 18673 Linear [Linear8bitLt=18672]; 48 layers touched, layers 0-47
+
+========== Collecting routes for int8 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.27.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.28.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.29.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.30.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.31.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.32.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.33.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.34.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.35.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.36.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.37.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.38.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.39.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.40.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.41.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.42.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.43.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.44.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.45.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.46.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.47.mlp.gate
+[RoutingLogger] 48 router hooks attached (num_experts=128, top_k=8)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 48 modules, 365568 token rows total
+
+========== Determinism re-run for int8 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+
+========== NLL for int8 ==========
+[nll] int8: 1.996547
+[Saved] /results/qwen3_30b_a3b/routes_int8.json.gz
+
+========== Loading variant: int4 ==========
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|6         | 1/16 [00:03<00:51,  3.45s/it]Loading checkpoint shards:  12%|#2        | 2/16 [00:07<00:55,  3.98s/it]Loading checkpoint shards:  19%|#8        | 3/16 [00:12<00:54,  4.16s/it]Loading checkpoint shards:  25%|##5       | 4/16 [00:16<00:49,  4.15s/it]Loading checkpoint shards:  31%|###1      | 5/16 [00:20<00:44,  4.04s/it]Loading checkpoint shards:  38%|###7      | 6/16 [00:23<00:39,  3.97s/it]Loading checkpoint shards:  44%|####3     | 7/16 [00:27<00:34,  3.84s/it]Loading checkpoint shards:  50%|#####     | 8/16 [00:31<00:30,  3.82s/it]Loading checkpoint shards:  56%|#####6    | 9/16 [00:35<00:26,  3.85s/it]Loading checkpoint shards:  62%|######2   | 10/16 [00:39<00:24,  4.03s/it]Loading checkpoint shards:  69%|######8   | 11/16 [00:43<00:19,  3.87s/it]Loading checkpoint shards:  75%|#######5  | 12/16 [00:46<00:15,  3.83s/it]Loading checkpoint shards:  81%|########1 | 13/16 [00:50<00:11,  3.77s/it]Loading checkpoint shards:  88%|########7 | 14/16 [00:54<00:07,  3.76s/it]Loading checkpoint shards:  94%|#########3| 15/16 [01:00<00:04,  4.49s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:01<00:00,  3.50s/it]Loading checkpoint shards: 100%|##########| 16/16 [01:01<00:00,  3.86s/it]
+[load] quantized modules: 18672 of 18673 Linear [Linear4bit=18672]; 48 layers touched, layers 0-47
+
+========== Collecting routes for int4 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.27.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.28.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.29.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.30.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.31.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.32.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.33.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.34.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.35.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.36.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.37.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.38.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.39.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.40.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.41.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.42.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.43.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.44.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.45.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.46.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.47.mlp.gate
+[RoutingLogger] 48 router hooks attached (num_experts=128, top_k=8)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 48 modules, 365568 token rows total
+
+========== Determinism re-run for int4 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+
+========== NLL for int4 ==========
+[nll] int4: 2.049533
+[Saved] /results/qwen3_30b_a3b/routes_int4.json.gz
+[guard] baseline-vs-baseline RS = 1.0000000000 (expected 1.0)
+
+Research Metrics int8 vs fp16
+  Routing similarity RS : 0.9310
+  Jaccard routing drift : 0.0690
+  Overlap@k             : 0.9604
+  Selection shift       : 0.0396
+
+Research Metrics int4 vs fp16
+  Routing similarity RS : 0.8343
+  Jaccard routing drift : 0.1657
+  Overlap@k             : 0.9005
+  Selection shift       : 0.0995
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 876, in <module>
+    main()
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 844, in main
+    _write_drift_outputs(args, output_dir, prompts, summary_rows, layer_rows)
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 734, in _write_drift_outputs
+    save_summary_csv(summary_rows, summary_path)
+  File "/root/RoutingDrift/src/routingdrift/quantization/io_utils.py", line 84, in save_summary_csv
+    writer.writerows(rows)
+  File "/usr/local/lib/python3.11/csv.py", line 157, in writerows
+    return self.writer.writerows(map(self._dict_to_list, rowdicts))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/csv.py", line 149, in _dict_to_list
+    raise ValueError("dict contains fields not in fieldnames: "
+ValueError: dict contains fields not in fieldnames: 'nll', 'nll_delta_vs_baseline'
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T07:57:45.750267+00:00
