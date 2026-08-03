@@ -170,7 +170,8 @@ is a common term that cancels in the config-to-config differences the correlatio
 on. A multiple-choice outcome has nothing to cancel: at `--lm_eval_limit 200` the standard
 error exceeds the effect being measured, as the accuracy table above shows.
 
-Thirteen of the fifteen configurations, ordered by drift:
+All fifteen configurations completed. The twelve full-coverage and layer-limited
+variants, ordered by drift:
 
 | config | jaccard drift | gate KL | dNLL vs FP16 |
 |---|---:|---:|---:|
@@ -181,6 +182,7 @@ Thirteen of the fifteen configurations, ordered by drift:
 | nf4_L2 | 0.0626 | 1.36e-03 | +0.0168 |
 | nf4_L4 | 0.0814 | 2.48e-03 | +0.0791 |
 | nf4_L8 | 0.0978 | 3.41e-03 | +0.0835 |
+| nf4_L12 | 0.1074 | 4.22e-03 | +0.0836 |
 | nf4 | 0.1140 | 4.98e-03 | +0.0872 |
 | nf4_fp32c | 0.1140 | 4.97e-03 | +0.0871 |
 | nf4_dq | 0.1142 | 5.01e-03 | +0.0866 |
@@ -191,9 +193,17 @@ Drift tracks quality loss strongly:
 
 | relationship | Pearson | Spearman |
 |---|---:|---:|
-| drift vs dNLL | **+0.918** | +0.937 |
-| gate KL vs dNLL | +0.882 | +0.958 |
-| drift vs gate KL | **+0.981** | |
+| drift vs dNLL | **+0.919** | +0.951 |
+| gate KL vs dNLL | +0.878 | +0.967 |
+| drift vs gate KL | **+0.978** | |
+
+Fitted over the 13 distinct quantized configurations. `nf4_L16` is excluded because it is
+bit-identical to `nf4_dq`: the layer-limited series enables double quantization, so
+restricting it to all 16 layers reproduces `nf4_dq` exactly, to six decimals on drift, gate
+KL, and NLL alike. That redundancy is an accidental but useful control, since two
+independent code paths agree exactly, and it confirms that `skip_modules` with n equal to
+the layer count is a correct no-op. Including the duplicate moves nothing: +0.921, +0.880,
+and +0.978.
 
 **That third row is the problem, and it is the honest headline of this sub-study.** Gate KL
 is the null hypothesis: quantization simply makes the gate noisier, and any apparent
@@ -208,9 +218,9 @@ assumption the design rested on: bitsandbytes does honour `llm_int8_skip_modules
 loads, so the `nf4_L*` configurations are genuinely partial rather than silent duplicates
 of full quantization.
 
-| quantized layers | 2 | 4 | 8 | all 16 |
-|---|---:|---:|---:|---:|
-| jaccard drift | 0.0626 | 0.0814 | 0.0978 | 0.1140 |
+| quantized layers | 2 | 4 | 8 | 12 | all 16 |
+|---|---:|---:|---:|---:|---:|
+| jaccard drift | 0.0626 | 0.0814 | 0.0978 | 0.1074 | 0.1142 |
 
 And the knobs differ enormously in how much they matter. The INT8 outlier threshold barely
 registers (0.0476 to 0.0517 across t0, t3, t6, t12), and double quantization and fp32
@@ -218,10 +228,12 @@ compute are indistinguishable from their baselines (nf4 0.1140, nf4_dq 0.1142, n
 0.1140). The 4-bit data type dominates everything else: fp4 drifts 34% more than nf4
 (0.1524 against 0.1140) at identical bit width.
 
-Two configurations, `nf4_L12` and `nf4_L16`, are not in the table. A memory-retention bug
-in the sweep loop, since worked around by chunking across processes, ended the run after
-thirteen. `peak_vram_gb` in `sweep_drift.csv` is a cumulative figure for the same reason
-and should not be read as the memory a single configuration needs.
+One operational note. The sweep loop retains every model it loads, so a single process
+cannot reach all 15 configurations: residual VRAM climbs by one model per configuration and
+the run exhausts an 80 GB card around the fourteenth. It is worked around by capping
+configurations per process and resuming in a fresh one, which is why `sweep_drift.csv` also
+carries `residual_vram_gb`. `peak_vram_gb` is cumulative for the same reason and should not
+be read as the memory a single configuration needs.
 
 ### Does routing drift actually cause the damage?
 
@@ -540,7 +552,7 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 7. **Drift generalises across architectures, and finer granularity drifts more.** Corrected for top-k, INT4 changes 0.80 experts per token on Qwen3-30B-A3B (8 of 128), 0.53 on OLMoE (8 of 64), and 0.47 on DeepSeek-V2-Lite (6 of 64), all mutually disjoint at 95%. Raw jaccard drift inverts the OLMoE/DeepSeek ordering, because one swapped expert registers as `2/(k+1)` and so counts 29% larger at top-6 than at top-8.
 
-8. **Drift predicts quality loss, but so does gate KL, and they are 98% collinear.** Across 13 quantization configurations, drift correlates with NLL increase at Pearson +0.918, gate KL at +0.882, and the two predictors with each other at **+0.981**. The correlation alone therefore cannot show that routing fidelity carries information beyond "the gate got noisier." Only the causal intervention in finding 5 separates them.
+8. **Drift predicts quality loss, but so does gate KL, and they are 98% collinear.** Across 13 distinct quantization configurations, drift correlates with NLL increase at Pearson +0.919, gate KL at +0.878, and the two predictors with each other at **+0.978**. The correlation alone therefore cannot show that routing fidelity carries information beyond "the gate got noisier." Only the causal intervention in finding 5 separates them.
 
 9. **The 4-bit data type dominates every other quantization knob.** fp4 drifts 34% more than nf4 at identical bit width (0.1524 against 0.1140), while the INT8 outlier threshold spans only 0.0476 to 0.0517 and double quantization and fp32 compute are indistinguishable from their baselines.
 
@@ -549,12 +561,12 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 ## Known Limitations
 
 - **Accuracy differences are below noise.** At `--lm_eval_limit 500` the largest INT4 drop is about 0.8 sigma. The drift-to-quality *correlation* therefore rests on differences that cannot be resolved at this evaluation budget; the causal replay result does not, since NLL over 119,952 token positions has far lower variance than 500 multiple-choice outcomes.
-- **The correlation rests on 13 configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
+- **The correlation rests on 13 distinct configurations from one checkpoint.** That is enough points to fit a line, which three precisions were not, but every configuration derives from the same FP16 OLMoE checkpoint and the same 100 prompts. It measures how drift and quality move together across quantization settings, not across models, corpora, or quantization algorithms.
 - **One model for the causal claim.** Replay has run on OLMoE only.
 - **Drift and gate KL cannot be separated by correlation.** They are 98% collinear across the sweep, so the sweep establishes that drift tracks quality loss and not that it explains anything gate noise does not. The causal replay is the only evidence that distinguishes them, and it has run on one model.
 - **Quality is measured for one of three models.** The sweep supplies NLL for OLMoE. DeepSeek and Qwen have drift with no quality metric, so the drift-to-quality relationship is untested outside OLMoE.
 - **The cross-model comparison has an uncontrolled confound.** OLMoE's router is quantized and DeepSeek's is not, because one is an `nn.Linear` and the other an `nn.Parameter`. Layer count, hidden size, shared-expert count and training data also differ. The top-k correction removes one confound, not these.
-- **Two sweep configurations are missing.** `nf4_L12` and `nf4_L16` were lost to a memory-retention bug, so the layer dial is resolved at 2, 4, 8 and 16 layers but not 12.
+- **The layer dial has five points, one of which is redundant.** `nf4_L16` duplicates `nf4_dq` exactly, so the dial really resolves 2, 4, 8, 12 layers and full coverage.
 - **Compiler timings share one attention backend that the other benchmarks do not.** cuDNN SDPA is disabled throughout `compile_benchmark`, because Inductor's tensor layouts make it fail. Numbers there are internally consistent but not directly comparable to `benchmark_olmoe.csv`.
 - **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
 - **`peak_vram_gb` in `sweep_drift.csv` is cumulative, not per configuration.** The sweep loop retains every model it loads, so the column is a running total and understates nothing but overstates each configuration's own footprint by everything before it.
