@@ -69,6 +69,11 @@ from routingdrift.quantization.routing_logger import (
 )
 
 
+# Residual above this after a config is cleaned up means a reference is being held. A
+# freed 7B model in nf4 should leave well under a gigabyte behind.
+_RESIDUAL_WARN_GB = 2.0
+
+
 def _free() -> None:
     gc.collect()
     if torch.cuda.is_available():
@@ -247,6 +252,23 @@ def run_sweep(args: argparse.Namespace) -> int:
         del model, tokenizer
         _free()
 
+        # What is still on the card AFTER the model was deleted and the cache emptied.
+        #
+        # This is the number whose absence made the OOM at config 14/15 undiagnosable.
+        # peak_vram_gb is reset per config, so it looked like one config wanting 75.5 GB
+        # rather than what it was: residual from earlier configs plus this one's 6 GB.
+        # Residual should return to roughly the same small value every config. If it
+        # climbs monotonically, something is holding a reference to each model and the
+        # sweep will die partway through with memory to spare on paper.
+        residual = 0.0
+        if torch.cuda.is_available():
+            residual = torch.cuda.memory_allocated() / 1024**3
+            if residual > _RESIDUAL_WARN_GB:
+                print(f"[sweep] WARNING residual VRAM after cleanup: {residual:.2f} GB. "
+                      f"Memory is not being released between configs; at this rate the "
+                      f"sweep will OOM before all {len(specs)} configs finish. The "
+                      f"already-scored configs are saved and --resume will skip them.")
+
         if baseline_routes is None:
             baseline_routes, baseline_probs = routes, probs
             metrics = summarize_research_metrics(routes, routes)
@@ -275,6 +297,7 @@ def run_sweep(args: argparse.Namespace) -> int:
             "nll": "" if nll is None else round(nll, 6),
             "quant_audit": quant_audit,
             "peak_vram_gb": round(vram, 2),
+            "residual_vram_gb": round(residual, 2),
             "seconds": round(elapsed, 1),
         }
         drift_rows.append(row)
@@ -282,7 +305,8 @@ def run_sweep(args: argparse.Namespace) -> int:
         # would otherwise discard every config already paid for.
         _save_drift(drift_rows, resumed_rows, output_dir)
         print(f"[sweep] {spec.name}: jaccard_drift={row['jaccard_drift']:.4f}  "
-              f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  {elapsed:.0f}s")
+              f"gate_kl={row['gate_kl']:.3e}  vram={vram:.1f}GB  "
+              f"residual={residual:.1f}GB  {elapsed:.0f}s")
 
         if args.run_lm_eval:
             tasks = [t for arg in args.lm_eval_tasks for t in arg.split(",") if t.strip()]
