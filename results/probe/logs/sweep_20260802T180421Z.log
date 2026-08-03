@@ -1,0 +1,70 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/probe_prompts.txt --output_dir /results/probe --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --configs fp16 nf4 nf4_L4 nf4_L8
+# started : 2026-08-02T18:04:21.772686+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/probe/logs/sweep_20260802T180421Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[sweep] 20 prompts
+[sweep] 4 configurations: fp16, nf4, nf4_L4, nf4_L8
+[Saved] /results/probe/run_manifest.json
+
+======================================================================
+[1/4] fp16 -- Unquantized reference
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-02:18:04:29,307 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:25<00:50, 25.23s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:54<00:27, 27.44s/it]Loading checkpoint shards: 100%|##########| 3/3 [01:31<00:00, 31.75s/it]Loading checkpoint shards: 100%|##########| 3/3 [01:31<00:00, 30.36s/it]
+[sweep] quantized modules: 0 of 3153 Linear (model is unquantized)
+[sweep] 16 router-bearing layers (config reports num_hidden_layers=16)
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[sweep] fp16: jaccard_drift=0.0000  gate_kl=0.000e+00  vram=13.0GB  112s
+
+======================================================================
+[2/4] nf4 -- 4-bit normal-float
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:04<00:09,  4.55s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:09<00:04,  4.54s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:12<00:00,  4.03s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:12<00:00,  4.17s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+[sweep] nf4: jaccard_drift=0.1140  gate_kl=5.149e-03  vram=4.0GB  42s
+
+======================================================================
+[3/4] nf4_L4 -- nf4 on the first 4 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 12 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:04<00:08,  4.23s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:08<00:04,  4.02s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:11<00:00,  3.60s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:11<00:00,  3.74s/it]
+[sweep] quantized modules: 789 of 3153 Linear [Linear4bit=789]; 4 layers touched, layers 0-3
+[sweep] nf4_L4: jaccard_drift=0.0807  gate_kl=2.566e-03  vram=10.7GB  34s
+
+======================================================================
+[4/4] nf4_L8 -- nf4 on the first 8 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 8 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:04<00:08,  4.30s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:08<00:04,  4.19s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:11<00:00,  3.70s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:11<00:00,  3.84s/it]
+[sweep] quantized modules: 1577 of 3153 Linear [Linear4bit=1577]; 8 layers touched, layers 0-7
+[sweep] nf4_L8: jaccard_drift=0.0973  gate_kl=3.571e-03  vram=8.4GB  37s
+
+[Saved] /results/probe/sweep_drift.csv
+[sweep] no accuracy rows; drift measured but the quality link was not evaluated
+[Saved] /results/probe/run_manifest.json
+
+[Done] /results/probe   Log: /results/probe/logs/sweep_20260802T180421Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-02T18:08:14.926750+00:00

@@ -1,0 +1,258 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_top8 --top_k 8 --max_length 128 --seed 0 --run_lm_eval --lm_eval_tasks mmlu gsm8k hellaswag --lm_eval_num_fewshot 5 --lm_eval_batch_size auto --lm_eval_limit 500 --lm_eval_device cuda
+# started : 2026-08-02T18:55:37.699982+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/olmoe_top8/logs/run_experiment_20260802T185537Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/olmoe_top8/prompts_used.txt
+[Saved] /results/olmoe_top8/run_manifest.json
+
+========== Loading variant: fp16 ==========
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-02:18:55:44,521 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:07<00:15,  7.83s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:16<00:08,  8.05s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:22<00:00,  7.24s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:22<00:00,  7.44s/it]
+[load] quantized modules: 0 of 3153 Linear (model is unquantized)
+
+========== Collecting routes for fp16 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 16 modules, 119952 token rows total
+
+========== Determinism re-run for fp16 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/olmoe_top8/routes_fp16.json.gz
+
+========== Loading variant: int8 ==========
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:03<00:07,  3.80s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:07<00:03,  3.77s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:10<00:00,  3.45s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:10<00:00,  3.54s/it]
+[load] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+
+========== Collecting routes for int8 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 728, in <module>
+    main()
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 689, in main
+    all_routes, variant_to_precision, variant_info = _collect_variants(args, prompts, output_dir)
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 458, in _collect_variants
+    routes, info = run_for_precision(
+                   ^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py", line 138, in run_for_precision
+    routes = collect_routes(
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/routing_logger.py", line 337, in collect_routes
+    _ = model(**inputs)
+        ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 1274, in forward
+    outputs = self.model(
+              ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 1016, in forward
+    layer_outputs = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+        

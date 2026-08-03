@@ -1,0 +1,5 @@
+config,lever,description,quantized_layers,routing_similarity_rs,jaccard_drift,overlap_at_k,selection_shift,gate_kl,quant_audit,peak_vram_gb,seconds
+fp16,baseline,Unquantized reference,0,1.0,0.0,1.0,0.0,0.0,quantized modules: 0 of 3153 Linear (model is unquantized),12.96,111.6
+nf4,4bit_type,4-bit normal-float,16,0.886028,0.113972,0.933968,0.066032,0.00514858,"quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15",3.98,41.6
+nf4_L4,layer_coverage,nf4 on the first 4 layers only,4,0.91931,0.08069,0.95353,0.04647,0.00256637,"quantized modules: 789 of 3153 Linear [Linear4bit=789]; 4 layers touched, layers 0-3",10.69,34.0
+nf4_L8,layer_coverage,nf4 on the first 8 layers only,8,0.902688,0.097312,0.943779,0.056221,0.00357062,"quantized modules: 1577 of 3153 Linear [Linear4bit=1577]; 8 layers touched, layers 0-7",8.37,37.5

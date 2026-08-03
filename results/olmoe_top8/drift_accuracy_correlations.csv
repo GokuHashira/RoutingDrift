@@ -1,0 +1,4 @@
+group,n_points,pearson,spearman
+all,4,0.8665965799396823,0.8944271909999159
+hellaswag,2,1.0,1.0
+mmlu,2,1.0,1.0

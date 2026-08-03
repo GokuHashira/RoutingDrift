@@ -1,0 +1,68 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/probe_prompts.txt --output_dir /results/probe --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --configs fp16 nf4 nf4_L4 nf4_L8",
+  "config": {
+    "configs": [
+      "fp16",
+      "nf4",
+      "nf4_L4",
+      "nf4_L8"
+    ],
+    "lm_eval_limit": null,
+    "max_length": 128,
+    "prompt_count": 20,
+    "requested_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+    "run_lm_eval": false,
+    "top_k": 8
+  },
+  "drift_points": 3,
+  "experiment": "quantization_sweep",
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "57b2c9688fa890407b4b985aa91f53df21ee65ca",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100 80GB PCIe",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "log_file": "/results/probe/logs/sweep_20260802T180421Z.log",
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.46.0",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "resolved_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+  "router_layers": 16,
+  "seeding": {
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "deterministic_requested": true,
+    "matmul_allow_tf32": false,
+    "seed": 0,
+    "use_deterministic_algorithms": "True (warn_only)"
+  },
+  "status": "completed",
+  "timestamp_utc": "2026-08-02T18:08:14.920013+00:00"
+}

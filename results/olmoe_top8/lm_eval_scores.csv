@@ -1,0 +1,7 @@
+variant,task,accuracy,metric
+fp16,mmlu,0.5430050110901175,"acc,none"
+fp16,hellaswag,0.706,"acc_norm,none"
+int8,mmlu,0.5419370738519674,"acc,none"
+int8,hellaswag,0.702,"acc_norm,none"
+int4,mmlu,0.5319970426353405,"acc,none"
+int4,hellaswag,0.684,"acc_norm,none"

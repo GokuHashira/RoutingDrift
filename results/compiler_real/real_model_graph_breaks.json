@@ -1,0 +1,147 @@
+{
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+  "seq_len": 13,
+  "num_hidden_layers": 16,
+  "num_experts": 64,
+  "graph_break_count": 23,
+  "graph_count": 24,
+  "breaks_per_layer": 1.4375,
+  "break_reasons": [
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    },
+    {
+      "reason": "dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True",
+      "file": "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py",
+      "line": "662",
+      "code": "idx, top_x = torch.where(expert_mask[expert_idx])"
+    }
+  ],
+  "break_locations": {
+    "modeling_olmoe.py:662": 16
+  },
+  "subgraphs": 24,
+  "nodes_per_subgraph": [
+    19,
+    21,
+    77,
+    10,
+    11,
+    10,
+    4,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    77,
+    11,
+    5
+  ],
+  "total_captured_nodes": 1323,
+  "captured_nodes_note": "Nodes here are those dynamo captured. Work in the eager gaps between subgraphs is not represented, so subgraph sizes describe the shape of the capture rather than a compiled-versus-eager ratio.",
+  "retired_claims": {
+    "routing_share_of_forward_time": "NOT COMPUTED. The 78.8% figure came from 2-layer random-init stubs at hidden 512 where expert matmuls are microscopic and dispatch overhead dominates. It does not transfer to the real model and is retired rather than reproduced.",
+    "percent_compiled_heuristic": "NOT REPORTED as 1/(breaks+1). That assumes equal-sized subgraphs. Subgraph node counts are reported instead."
+  },
+  "breaks_with_dynamic_capture": 0,
+  "dynamic_capture_reasons": [],
+  "breaks_removed_by_dynamic_capture": 23
+}

@@ -1,0 +1,93 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_top8 --top_k 8 --max_length 128 --seed 0 --resume --run_lm_eval --lm_eval_tasks mmlu hellaswag --lm_eval_num_fewshot 5 --lm_eval_batch_size auto --lm_eval_limit 500 --lm_eval_device cuda",
+  "config": {
+    "compiler_modes": [],
+    "lm_eval_limit": 500,
+    "lm_eval_num_fewshot": 5,
+    "lm_eval_tasks": [
+      "mmlu",
+      "hellaswag"
+    ],
+    "max_length": 128,
+    "precisions": [
+      "fp16",
+      "int8",
+      "int4"
+    ],
+    "prompt_count": 100,
+    "prompts_file": "/results/mmlu_prompts.txt",
+    "requested_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+    "run_lm_eval": true,
+    "target_module": [
+      "mlp.gate"
+    ],
+    "top_k": 8
+  },
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "fa985ee26032263a0415e420d2b2f0420511338d",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100-SXM4-80GB",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "guards": {
+    "all_variants_deterministic": null,
+    "baseline_self_consistency_rs": 1.0,
+    "determinism_by_variant": {},
+    "determinism_check": null
+  },
+  "log_file": "/results/olmoe_top8/logs/run_experiment_20260802T222345Z.log",
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.46.0",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "seeding": {
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "deterministic_requested": true,
+    "matmul_allow_tf32": false,
+    "seed": 0,
+    "use_deterministic_algorithms": "True (warn_only)"
+  },
+  "status": "completed",
+  "timestamp_utc": "2026-08-02T23:29:28.067460+00:00",
+  "variants": {
+    "fp16": {
+      "precision": "fp16",
+      "resumed_from": "/results/olmoe_top8/routes_fp16.json.gz"
+    },
+    "int4": {
+      "precision": "int4",
+      "resumed_from": "/results/olmoe_top8/routes_int4.json.gz"
+    },
+    "int8": {
+      "precision": "int8",
+      "resumed_from": "/results/olmoe_top8/routes_int8.json.gz"
+    }
+  }
+}
