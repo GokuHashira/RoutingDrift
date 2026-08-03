@@ -482,13 +482,19 @@ RoutingDrift/
 │   │   ├── validate_olmoe.py        # Numerical correctness tests for OLMoE
 │   │   ├── validate_mixtral.py      # Numerical correctness tests for Mixtral
 │   │   ├── benchmark.py             # E2E latency sweep (seq_len x batch_size)
-│   │   ├── profile_ops.py           # Isolated kernel profiling + Amdahl breakdown
+│   │   ├── profile_ops.py           # Op fractions by MODULE (record_function), Amdahl ceiling
+│   │   ├── compile_benchmark.py     # eager / kernels / compile / +dynamic-capture, timed
 │   │   ├── nsight_proxy.py          # Bandwidth / occupancy / roofline (no ncu needed)
 │   │   ├── eval_accuracy.py         # lm-eval accuracy check on patched vs baseline
 │   │   └── results_table.py         # Reads CSVs -> summary table + 8 plots
 │   │
 │   ├── quantization/                # Sub-study 2: routing drift under quantization
 │   │   ├── run_experiment.py        # Pipeline: load -> hook router -> run -> compute drift
+│   │   ├── sweep.py                 # 17-config sweep: drift + gate KL + NLL per config
+│   │   ├── quant_configs.py         # The 17 specs, incl. layer dial and router exemption
+│   │   ├── route_replay.py          # Causal intervention: FP16 weights, quantized routes
+│   │   ├── bootstrap.py             # CIs by resampling PROMPTS, not token rows (stdlib only)
+│   │   ├── compare_models.py        # Cross-model table, corrected for top-k (stdlib only)
 │   │   ├── drift.py                 # Routing metrics (RS, Jaccard, Overlap@k, Shift)
 │   │   ├── routing_logger.py        # Gate hook capturing per-token expert indices
 │   │   ├── model_loader.py          # Unified FP16 / INT8 / INT4 / GPTQ loader
@@ -496,10 +502,11 @@ RoutingDrift/
 │   │   ├── analysis_utils.py        # Drift-accuracy correlation + heatmaps
 │   │   ├── repro.py                 # Seeding, run manifest, run logging
 │   │   ├── build_mmlu_prompts.py    # Samples MMLU questions into a prompt file
-│   │   └── verify_reproducibility.py# Recomputes committed CSVs from raw routes
+│   │   └── verify_reproducibility.py# Recomputes committed CSVs from raw routes (stdlib only)
 │   │
 │   ├── compiler/                    # Sub-study 3: torch.compile graph break analysis
-│   │   ├── main.py                  # 5-phase pipeline orchestrator
+│   │   ├── real_model_breaks.py     # dynamo.explain on the REAL checkpoint (23 breaks)
+│   │   ├── main.py                  # 5-phase pipeline orchestrator (legacy, stub-scale)
 │   │   ├── graph_break_analyzer.py  # Wraps torch._dynamo.explain(); classifies breaks
 │   │   ├── benchmark.py             # Compile mode sweep + latency measurement
 │   │   ├── olmoe_retrieve.py        # Lightweight OLMoE stub with real routing logic
@@ -507,11 +514,25 @@ RoutingDrift/
 │   │   ├── ir_inspector.py          # Inspects TorchInductor auto-generated Triton IR
 │   │   └── metrics_collector.py     # Cross-phase metrics aggregation
 │   │
-│   └── reporting/generate_report.py # Reads all CSVs/JSONs -> 11 comparison plots
+│   ├── output_guard.py              # Refuses to write over committed reference results
+│   │
+│   └── reporting/
+│       ├── paper_figures.py         # One figure per load-bearing claim, current data only
+│       └── generate_report.py       # The original 11 cross-study plots
 │
 ├── results/                         # All experiment artifacts (outside the source tree)
-│   ├── olmoe_top2_zaratan/          # Committed May-2026 A100 drift run
-│   ├── kernels/  kernels_a100/      # Kernel benchmark + profile CSVs and plots
+│   ├── README.md                    # Which directory is current, kept, or superseded
+│   ├── olmoe_top8/                  # OLMoE top-8 drift, NLL, CIs, accuracy
+│   ├── deepseek_v2_lite/            # DeepSeek-V2-Lite drift, NLL, CIs
+│   ├── qwen3_30b_a3b/               # Qwen3-30B-A3B drift, NLL, CIs
+│   ├── olmoe_sweep/                 # The 17-config sweep and its correlations
+│   ├── olmoe_replay/                # The causal attribution result
+│   ├── compiler_real/               # Real-checkpoint graph breaks
+│   ├── kernels_rerun/               # Corrected op fractions + the compile benchmark
+│   ├── paper_figures/               # The seven figures
+│   ├── olmoe_top2_zaratan/          # Committed May-2026 Zaratan run: the cross-machine
+│   │                                #   reference. Top-2, NOT the paper's numbers
+│   ├── kernels/mixtral/             # The Mixtral GPTQ integration failure
 │   ├── compiler/                    # Graph breaks, compile speedups, traces
 │   └── report_plots/                # Cross-study figures
 │
@@ -757,38 +778,15 @@ Ordered so the two mechanisms come first, since they explain the rest.
 
 ## Team
 
-**Original course project** (MSML 605, three sub-studies run on Zaratan):
+| Person | Contribution |
+|--------|--------------|
+| **Gokul** | Triton kernels (RMSNorm + router Softmax) and their corrected re-measurement by module rather than by kernel name; the 17-configuration quantization sweep; the causal route-replay intervention and its control; the router-exemption controls that decompose drift into gate and upstream components; cross-architecture measurement on DeepSeek-V2-Lite and Qwen3-30B-A3B, and the top-k correction that makes those numbers comparable; prompt-resampled bootstrap intervals; the five-configuration compile benchmark; graph-break analysis on the real checkpoint; the reproducibility layer (provenance manifests, run logging, determinism checks, write guard, recomputation from raw route dumps); the Modal execution pipeline; figures and documentation |
+| Amogh | Compiler sub-study: initial graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
+| Giri | Quantization sub-study: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
 
-| Person | Role |
-|--------|------|
-| Gokul  | Triton kernel engineering (RMSNorm + router Softmax), Amdahl analysis, HPC runs on Zaratan |
-| Amogh  | Compiler: graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
-| Giri   | Quantization: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
-
-**Extension for publication** (the results in this README): **Gokul**.
-
-Triton kernels and their re-measurement, plus the implementation and execution of everything
-added since the course project:
-
-- the 17-configuration quantization sweep (`quantization/sweep.py`, `quantization/quant_configs.py`)
-- the causal route-replay intervention and its control (`quantization/route_replay.py`)
-- the router-exemption controls that decompose drift into gate and upstream components
-- cross-architecture measurement on DeepSeek-V2-Lite and Qwen3-30B-A3B, and the top-k
-  correction that makes those numbers comparable (`quantization/compare_models.py`)
-- prompt-resampled bootstrap intervals (`quantization/bootstrap.py`)
-- the corrected op-fraction profiling and the five-configuration compile benchmark
-  (`kernels/profile_ops.py`, `kernels/compile_benchmark.py`)
-- graph-break analysis on the real checkpoint, replacing the 2-layer stubs
-  (`compiler/real_model_breaks.py`)
-- the reproducibility layer: provenance manifests, run logging, seeded determinism checks,
-  the output write-guard, and recomputation of every published metric from raw route dumps
-  (`quantization/repro.py`, `quantization/verify_reproducibility.py`, `output_guard.py`)
-- the Modal execution pipeline that runs each stage reproducibly on an A100 (`modal_app.py`)
-- the figures (`reporting/paper_figures.py`) and this README
-
-The extension re-measured all three original sub-studies, which changed several of their
-headline numbers; the corrections and their causes are documented in the table at the top of
-this README rather than applied silently.
+The results reported above re-measure all three original sub-studies, which changed several
+headline numbers. The corrections and their causes are in the table at the top of this README
+rather than applied silently.
 
 *University of Maryland*
 
