@@ -322,14 +322,24 @@ def probe(n_prompts: int = 20):
 # Stage 3 -- the correlation. This is the paper.
 # ---------------------------------------------------------------------------
 @app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=8 * 60 * 60)
-def sweep(lm_eval_limit: int = 200):
+def sweep(quality: str = "nll"):
     """
-    15 quantization configs -> drift and gate-KL against accuracy drop.
+    15 quantization configs -> drift and gate-KL against a quality loss.
 
-    GSM8K is excluded deliberately. It is the only generative task here, so it dominates
-    eval time and is 2-3x worse again under INT4 -- and OLMoE scores ~8% on it, close
-    enough to the floor that an "accuracy drop" carries no signal to correlate against.
-    Measuring degradation on a task the model already fails adds noise, not points.
+    Quality is measured as NLL, not benchmark accuracy. The sweep needs to separate 15
+    configs whose quality differs by fractions of a point, and MMLU at limit=200 has a
+    standard error of ~3.5 points against an INT4 drop of ~1: the ranking would be noise.
+    NLL over ~120k token positions resolves the same differences at a standard error two
+    orders of magnitude smaller, and costs one forward pass per config while the model is
+    already loaded. This turns an eight-hour run into roughly one.
+
+    Pass quality="both" to also run lm-eval, which restores the eight hours. Accuracy is
+    worth having once, as the anchor that says what a given NLL delta means in points on
+    a real benchmark -- but it is the wrong instrument for ranking 15 configs.
+
+    If lm-eval is run: GSM8K stays excluded. It is the only generative task, dominates
+    eval time, is 2-3x worse again under INT4, and OLMoE scores ~8% on it -- close enough
+    to the floor that an "accuracy drop" carries no signal to correlate against.
     """
     _gpu_report()
     _run(
@@ -342,14 +352,20 @@ def sweep(lm_eval_limit: int = 200):
         # 15 configs is long enough that a preemption without --resume could restart the
         # whole sweep repeatedly and never finish.
         "--resume",
-        "--run_lm_eval",
-        "--lm_eval_tasks", "mmlu", "hellaswag",
-        "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
-        "--lm_eval_limit", str(lm_eval_limit), "--lm_eval_device", "cuda",
+        "--quality", quality,
+        # sweep.py runs lm-eval off --run_lm_eval, independently of --quality, so the flag
+        # has to be added rather than implied. Omitting it while passing quality="both"
+        # would silently produce an NLL-only run under a name that promised accuracy.
+        *(["--run_lm_eval",
+           "--lm_eval_tasks", "mmlu", "hellaswag",
+           "--lm_eval_num_fewshot", "5", "--lm_eval_batch_size", "auto",
+           "--lm_eval_limit", "200", "--lm_eval_device", "cuda"]
+          if quality in ("both", "lm_eval") else []),
     )
     print("\nRead sweep_correlations.csv: jaccard_drift AND gate_kl are both correlated")
-    print("against accuracy_drop. If gate_kl explains as much, routing fidelity is a proxy")
-    print("for gate noise rather than a metric, and the paper must say so.")
+    print("against the quality loss. If gate_kl explains as much, routing fidelity is a")
+    print("proxy for gate noise rather than a metric, and the paper must say so.")
+    print("The drift~gate_kl collinearity row is what decides that.")
 
 
 # ---------------------------------------------------------------------------
@@ -404,29 +420,53 @@ def deepseek_drift():
 
 
 # ---------------------------------------------------------------------------
-# Stage 6 -- third architecture: granularity axis, 2026 model
+# Stage 6 -- third architecture: granularity and the renormalisation axis
 # ---------------------------------------------------------------------------
 @app.function(image=latest_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET], timeout=4 * 60 * 60)
 def qwen_drift():
     """
-    Qwen3.6-35B-A3B: 256 routed + 1 shared, top-8, April 2026.
+    Qwen3-30B-A3B-Base: 128 routed experts, top-8, no shared expert.
 
-    Runs on the newer-transformers image; 4.46 cannot load this architecture. The manifest
-    records which version was used, and the cross-model comparison therefore spans two
-    library versions -- state that in the paper rather than hiding it.
+    NOT Qwen3.6-35B-A3B, which this stage originally named. That model is real (released
+    2026-04-15) but its architecture is Qwen3_5MoeForConditionalGeneration with nested
+    text_config and vision_config -- an image-text-to-text model. Three problems: it does
+    not load through AutoModelForCausalLM, which is all model_loader knows how to call;
+    its router sits under a nested language-model submodule; and a vision tower makes it
+    the wrong control for a text-only drift comparison against OLMoE and DeepSeek. The
+    modality would be confounded with every other difference.
+
+    Qwen3-30B-A3B-Base earns the slot on its own merits rather than being a fallback:
+
+      * norm_topk_prob = TRUE, where OLMoE's is FALSE. OLMoE mixes with the raw softmax
+        over all 64 experts and never renormalises over the top-k, so a token that loses
+        an expert to quantization loses that expert's weight outright. Qwen renormalises,
+        so the surviving experts absorb it. That is a mechanism for why the same jaccard
+        drift should cost different amounts of quality, and it is the sharpest contrast
+        available -- worth more to the paper than one more 2026 checkpoint.
+      * 128 experts against OLMoE's 64 and DeepSeek's 64, holding top-8, which is the
+        granularity axis this stage was for.
+      * No shared expert, where DeepSeek has 2, so shared-vs-none is isolated.
+      * ~60 GB in bf16 on an 80 GB card, against ~72 GB for the 35B. Real headroom.
+
+    Base, not Instruct: instruction tuning reshapes routing, and the other two models are
+    base checkpoints.
+
+    Still needs the newer-transformers image -- 4.46 predates qwen3_moe. The manifest
+    records the version, and the cross-model comparison therefore spans two library
+    versions. State that in the paper rather than hiding it.
     """
     _gpu_report()
     _run(
         "routingdrift.quantization.run_experiment",
-        "--model_name", "Qwen/Qwen3.6-35B-A3B",
+        "--model_name", "Qwen/Qwen3-30B-A3B-Base",
         "--precisions", "fp16", "int8", "int4",
         "--target_module", "mlp.gate",
         "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
-        "--output_dir", f"{RESULTS}/qwen36_moe",
+        "--output_dir", f"{RESULTS}/qwen3_30b_a3b",
         "--top_k", "8", "--max_length", "128", "--seed", "0", "--skip_heatmaps",
     )
     _run("routingdrift.quantization.verify_reproducibility",
-         "--results_dir", f"{RESULTS}/qwen36_moe")
+         "--results_dir", f"{RESULTS}/qwen3_30b_a3b")
 
 
 # ---------------------------------------------------------------------------
