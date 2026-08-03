@@ -23,16 +23,16 @@ plt.style.use("seaborn-v0_8-paper")
 REPO=os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # ── data paths ────────────────────────────────────────────────────────────────
-OLMOE_BENCH      =os.path.join(REPO,"results/kernels/olmoe/benchmark_olmoe.csv")
+OLMOE_BENCH      =os.path.join(REPO,"results/kernels_rerun/olmoe/benchmark_olmoe.csv")
 MIXTRAL_BENCH    =os.path.join(REPO,"results/kernels/mixtral/mixtral/benchmark_mixtral.csv")
-OLMOE_AMDAHL     =os.path.join(REPO,"results/kernels/olmoe/profile_amdahl.csv")
+OLMOE_AMDAHL     =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_amdahl.csv")
 MIXTRAL_AMDAHL   =os.path.join(REPO,"results/kernels/mixtral/mixtral/profile_amdahl.csv")
-RMSNorm_ISO      =os.path.join(REPO,"results/kernels/olmoe/profile_rmsnorm_isolated.csv")
-SOFTMAX_ISO      =os.path.join(REPO,"results/kernels/olmoe/profile_softmax_isolated.csv")
+RMSNorm_ISO      =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_rmsnorm_isolated.csv")
+SOFTMAX_ISO      =os.path.join(REPO,"results/kernels_rerun/olmoe/profile_softmax_isolated.csv")
 NSIGHT_CSV       =os.path.join(REPO,"results/kernels/olmoe/profile_nsight_proxy.csv")
-DRIFT_CSV        =os.path.join(REPO,"results/olmoe_top2_zaratan/routing_drift_summary.csv")
-DRIFT_LAYERS_CSV =os.path.join(REPO,"results/olmoe_top2_zaratan/routing_drift_layers.csv")
-LMEVAL_FP16_JSON =os.path.join(REPO,"results/olmoe_top2_zaratan/lm_eval/lm_eval_fp16.json")
+DRIFT_CSV        =os.path.join(REPO,"results/olmoe_top8/routing_drift_summary.csv")
+DRIFT_LAYERS_CSV =os.path.join(REPO,"results/olmoe_top8/routing_drift_layers.csv")
+LMEVAL_FP16_JSON =os.path.join(REPO,"results/olmoe_top8/lm_eval/lm_eval_fp16_mmlu.json")
 COMPILER_JSON    =os.path.join(REPO,"results/compiler/metrics_summary.json")
 
 # ── palette ───────────────────────────────────────────────────────────────────
@@ -611,7 +611,15 @@ def main():
     if not drift_rows:
         sys.exit(f"ERROR: drift CSV not found at {DRIFT_CSV}")
 
-    print(f"Generating report plots → {args.out}")
+    print(f"Generating report plots -> {args.out}")
+    print("Data sources:")
+    for label, path in (("kernel benchmark", OLMOE_BENCH), ("op fractions", OLMOE_AMDAHL),
+                        ("drift", DRIFT_CSV), ("layer drift", DRIFT_LAYERS_CSV),
+                        ("lm-eval", LMEVAL_FP16_JSON), ("compiler", COMPILER_JSON)):
+        print(f"  {label:<18} {path}")
+    print("NOTE: plot 09 reads the retired stub-era compiler summary. Its central quantity,")
+    print("      'pct_compiled', was computed as 1/(breaks+1) and is no longer reported, so")
+    print("      that figure should be dropped rather than regenerated.")
     plot_e2e_speedup(olmoe_rows,args.out)
     plot_isolated_kernels(rn_rows,sfx_rows,args.out)
     plot_nsight(nsight_rows,args.out)

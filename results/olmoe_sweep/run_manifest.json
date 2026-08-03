@@ -1,0 +1,79 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_sweep --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --resume --max_configs 6 --quality nll",
+  "config": {
+    "configs": [
+      "fp16",
+      "int8_t0",
+      "int8_t3",
+      "int8_t6",
+      "int8_t12",
+      "nf4",
+      "nf4_dq",
+      "fp4",
+      "fp4_dq",
+      "nf4_fp32c",
+      "nf4_L2",
+      "nf4_L4",
+      "nf4_L8",
+      "nf4_L12",
+      "nf4_L16"
+    ],
+    "lm_eval_limit": null,
+    "max_length": 128,
+    "prompt_count": 100,
+    "requested_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+    "run_lm_eval": false,
+    "top_k": 8
+  },
+  "drift_points": 14,
+  "experiment": "quantization_sweep",
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "8aa089dca48ac42b1e43833200cb105de96296fa",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100-SXM4-80GB",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "log_file": "/results/olmoe_sweep/logs/sweep_20260803T164921Z.log",
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.46.0",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "resolved_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+  "router_layers": 16,
+  "seeding": {
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "deterministic_requested": true,
+    "matmul_allow_tf32": false,
+    "seed": 0,
+    "use_deterministic_algorithms": "True (warn_only)"
+  },
+  "status": "completed",
+  "timestamp_utc": "2026-08-03T17:04:34.431887+00:00"
+}

@@ -1,0 +1,138 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_sweep --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --resume --quality nll
+# started : 2026-08-03T05:31:28.983527+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/olmoe_sweep/logs/sweep_20260803T053128Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[sweep] 100 prompts
+[sweep] 15 configurations: fp16, int8_t0, int8_t3, int8_t6, int8_t12, nf4, nf4_dq, fp4, fp4_dq, nf4_fp32c, nf4_L2, nf4_L4, nf4_L8, nf4_L12, nf4_L16
+[Saved] /results/olmoe_sweep/run_manifest.json
+
+======================================================================
+[1/15] fp16 -- Unquantized reference
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-03:05:31:37,393 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:10<00:20, 10.16s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:20<00:10, 10.50s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:28<00:00,  9.27s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:28<00:00,  9.57s/it]
+[sweep] quantized modules: 0 of 3153 Linear (model is unquantized)
+[sweep] 16 router-bearing layers (config reports num_hidden_layers=16)
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[sweep] fp16: NLL=2.276696
+[sweep] fp16: jaccard_drift=0.0000  gate_kl=0.000e+00  vram=13.0GB  219s
+
+======================================================================
+[2/15] int8_t0 -- LLM.int8, outlier threshold 0.0
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:13,  6.51s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:06,  6.61s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  5.89s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.07s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+[sweep] int8_t0: NLL=2.330174
+[sweep] int8_t0: jaccard_drift=0.0517  gate_kl=1.428e-03  vram=19.7GB  359s
+
+======================================================================
+[3/15] int8_t3 -- LLM.int8, outlier threshold 3.0
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.23s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:06,  6.58s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.01s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.13s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+[sweep] int8_t3: NLL=2.281693
+[sweep] int8_t3: jaccard_drift=0.0476  gate_kl=6.820e-04  vram=26.4GB  882s
+
+======================================================================
+[4/15] int8_t6 -- LLM.int8, outlier threshold 6.0 (bnb default)
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:10,  5.16s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.16s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:16<00:00,  5.42s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:16<00:00,  5.52s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 495, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 491, in main
+    return run_sweep(ap.parse_args())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 242, in run_sweep
+    nll = mean_nll(model, tokenizer, prompts, args.max_length)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/route_replay.py", line 247, in mean_nll
+    out = model(**inputs, labels=labels)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 1274, in forward
+    outputs = self.model(
+              ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 1016, in forward
+    layer_outputs = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 747, in forward
+    hidden_states, router_logits = self.mlp(hidden_states)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 668, in forward
+    current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/olmoe/modeling_olmoe.py", line 296, in forward
+    return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+                                                           ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/bitsandbytes/nn/modules.py", line 1009, in forward
+    out = bnb.matmul(x, self.weight, bias=self.bias, state=self.state)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/bitsandbytes/autograd/_functions.py", line 556, in matmul
+    return MatMul8bitLt.apply(A, B, out, bias, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/torch/autograd/function.py", line 575, in apply
