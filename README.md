@@ -66,29 +66,52 @@ The catch is Amdahl's Law. RMSNorm is a low single-digit percentage of OLMoE's f
 
 The core question here: when you quantize a MoE model to INT8 or INT4, does the routing actually change? If tokens end up getting sent to completely different experts after quantization, the model's specialized knowledge is effectively scrambled, even if the numerical outputs look close on the surface.
 
-We hooked the gate layer in OLMoE-1B-7B, ran the same 5 prompts (54 token positions/layer) through FP16, INT8, and INT4, and compared the **top-2** expert selections using four metrics. Note: OLMoE routes top-8, but this run logged only the top-2, so the numbers below are a *lower bound* on full top-8 routing drift. "Routing Similarity" here is mean per-token Jaccard overlap, not an exact-match fraction.
+We hook the gate layer in OLMoE-1B-7B, run 100 MMLU questions (119,952 token positions across 16 layers) through FP16, INT8, and INT4, and compare the full **top-8** expert selections. All three precisions are deterministic: routes are bit-identical across repeated passes.
 
 | Precision | Routing Similarity | Jaccard Drift | Overlap@k | Selection Shift |
 |-----------|--------------------|---------------|-----------|-----------------|
 | FP16      | 1.0000             | 0.0000        | 1.0000    | 0.0000          |
-| INT8      | 0.9545             | 0.0455        | 0.9659    | 0.0341          |
-| INT4      | 0.9333             | 0.0667        | 0.9497    | 0.0503          |
+| INT8      | 0.9512             | 0.0488        | 0.9723    | 0.0277          |
+| INT4      | 0.8858             | 0.1142        | 0.9340    | 0.0660          |
 
-At the top-2 level the routing is remarkably stable: INT8 keeps a 0.955 mean Jaccard overlap with FP16 and INT4 keeps 0.933. The reason is that quantization shifts gate logit values slightly, but the top-1/top-2 experts win by a wide margin, so small perturbations rarely flip them. Degradation is monotonic across all four metrics (FP16 > INT8 > INT4). Caveat: the thin-margin 7th/8th boundary, where flips are most likely, was not logged, so this understates full top-8 drift. Single run, 5 prompts, OLMoE only, no error bars.
+Two numbers describe this, and they sound very different:
 
-In absolute terms, 59 of 864 token rows change expert under INT8 and 86 of 864 under INT4, reproducible on any machine with `make verify`.
+- **Per slot:** 6.6% of expert selections change under INT4.
+- **Per token:** 55,624 of 119,952 positions, **46%**, have at least one of their eight experts change. Under INT8 it is 21%.
 
-We also ran a per-layer breakdown across all 16 layers to capture which layers drift the most under quantization. That's useful input for future mixed-precision schemes that could selectively protect the most routing-sensitive layers.
+Both are correct. Averaging 0.53 changed slots across 46% of tokens means the flips are spread thin, typically a single expert swapped rather than a wholesale reroute.
 
-For an accuracy reference we ran `lm-eval` on the FP16 model:
+Accuracy over the same corpus:
 
-| Benchmark  | Score  | Notes                                               |
-|------------|--------|-----------------------------------------------------|
-| MMLU       | 52.8%  | Slightly above chance, expected for 1B active params |
-| HellaSwag  | 78.3%  | (acc_norm) Solid commonsense performance            |
-| GSM8K      | 8.1%   | Matches the ~8% reported in the OLMoE paper         |
+| Precision | MMLU | HellaSwag |
+|-----------|------|-----------|
+| FP16 | 0.5430 | 0.7060 |
+| INT8 | 0.5419 | 0.7020 |
+| INT4 | 0.5320 | 0.6840 |
 
-The main next step for this sub-study is closing the loop with INT8/INT4 accuracy evals to verify that low routing drift actually preserves downstream accuracy.
+**None of these drops is statistically distinguishable from zero.** At `--lm_eval_limit 500` the largest, INT4 on HellaSwag, is about 0.8 sigma. Reported as measured, with that caveat, rather than as a degradation.
+
+### Does routing drift actually cause the damage?
+
+Correlation cannot answer this: drift rises with quantization strength, and so does everything else. So we intervene. The FP16 model runs with full-precision weights throughout while its router is forced to select **the experts the INT4 model chose**. The only thing that differs from a clean FP16 run is which experts each token visits.
+
+| | NLL |
+|---|---:|
+| FP16 | 2.276696 |
+| FP16 + FP16 routing (control) | 2.276696 |
+| FP16 + INT4 routing | 2.279028 |
+| INT4 | 2.363338 |
+
+**Routing drift explains 2.7% of INT4's degradation.** The other 97% is quantization error inside the expert weights.
+
+The control matters. Replaying FP16's own routes into FP16 must be a no-op, and it is, to six decimals. An earlier implementation masked non-selected experts to `-inf`, which for a model with `norm_topk_prob=False` renormalises the surviving weights and inflates them; that shifted NLL by +2.91 against a real effect of +0.087, and produced a confident, meaningless attribution. The intervention now substitutes the selection inside the MoE block and leaves the mixing weights alone.
+
+So: reroute nearly half of all tokens and almost nothing happens. **MoE experts are substitutable enough that routing fidelity, while measurable and monotonic in quantization strength, is close to inconsequential for output quality.**
+
+### One more finding, about reproducibility
+
+The same checkpoint quantized on two different A100 environments produced INT4 drift of 0.0667 and 0.1254, a factor of two apart, while the FP16 routes agreed to within 2 of 864 rows. Weights and routing reproduce across machines; **the quantization does not**. The earlier run predates provenance capture so its bitsandbytes version is unrecoverable, which is exactly why every run now writes a manifest.
+
 
 ---
 
@@ -96,20 +119,28 @@ The main next step for this sub-study is closing the loop with INT8/INT4 accurac
 
 `torch.compile` traces PyTorch code into a computation graph and fuses ops via TorchInductor. It works great on dense models. MoE routing breaks it because the routing logic is inherently data-dependent, so `torch.compile` can't trace through dynamic branches or dynamic shapes and falls back to eager mode at those points.
 
-Both OLMoE and Mixtral produce **exactly 1 graph break**, both in the MoE routing layer. The compiled subgraphs cover Attention and FFN ops (which trace cleanly), but the routing kernel itself always runs in eager mode. The reported "50% compiled" is a `1/(breaks+1)` heuristic, not an op-weighted measurement.
+Measured on the real 16-layer checkpoint with `torch._dynamo.explain`, OLMoE produces **23 graph breaks**, not one. Sixteen of them sit at a single line, `modeling_olmoe.py:662`, one per layer:
 
-We swept all four compile modes on both models. **These were run on lightweight 2-layer stubs, not the full models**. At that scale the speedups below are within measurement noise, so read them as directional, not as real-model results:
+```
+dynamic shape operator: aten.nonzero.default;
+to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True
+```
 
-| Compile Mode     | OLMoE Speedup | OLMoE p50 (ms) | Mixtral Speedup | Mixtral p50 (ms) |
-|------------------|---------------|----------------|-----------------|------------------|
-| eager (baseline) | 1.000x        | 5.80           | 1.000x          | 5.10             |
-| default          | 0.945x        | 6.14           | 0.890x          | 5.74             |
-| reduce-overhead  | **1.032x**    | 5.62           | 0.999x          | 5.11             |
-| max-autotune     | 1.032x        | 5.62           | **1.005x**      | 5.08             |
+The expert dispatch calls `torch.nonzero` to find which tokens routed to each expert, and its output shape depends on the data. Dynamo cannot trace that by default and bails out.
 
-Two things stand out (directionally). First, `default` mode trends *slower* than eager on both stubs: compilation overhead isn't worth it when the routing dispatch stays in eager anyway. Second, any gains are marginal. The robust, model-independent finding is qualitative: the single graph break in the routing layer keeps the dispatch in eager mode. The exact speedups need to be re-measured on the full models.
+**But it is removable.** Setting the flag dynamo itself names in the message:
 
-`torch.compile(dynamic=True)` looks like the most promising path to removing the break entirely, though we didn't test it in this study.
+| | graph breaks |
+|---|---:|
+| default | 23 |
+| `capture_dynamic_output_shape_ops=True` | **0** |
+
+Every break disappears. So MoE routing does not *structurally* prevent compilation; it defeats the default configuration, and a one-line change traces it with an unbacked symbolic size instead.
+
+**Caveat, and it matters:** zero breaks is not the same as faster. Unbacked symbolic shapes can generate worse code than an eager fallback. This is a result about compilability, not speed, until someone measures latency both ways.
+
+Two measurement notes. `cache_size_limit` must be raised above its default of 8, or dynamo stops tracing partway through a 16-layer model, because every layer recompiles on `self_attn.layer_idx`; at the default this run reported 15 breaks instead of 23. And subgraph sizes range from 4 to 77 nodes, so the previously reported "50% compiled" figure, computed as `1/(breaks+1)`, assumed equal-sized subgraphs and is not meaningful.
+
 
 ---
 
@@ -299,33 +330,27 @@ python tools/collect_diagnostics.py --no_bundle   # digest only
 
 ## Key Findings
 
-1. **Triton kernels hit large isolated speedups but no measurable E2E gain on OLMoE.** RMSNorm reaches ~7x in the microbenchmark but the target ops are only a small single-digit % of total runtime, giving an Amdahl ceiling of ~1.015x. Measured E2E stays within noise of 1.0x (e.g. 0.985x at seq=512), i.e. Amdahl-bound: the isolated speedup does not translate to end-to-end.
+1. **Isolated kernel speedups do not survive Amdahl's Law.** Fused RMSNorm reaches 5.7x to 9.2x in a microbenchmark, but the ops it targets are a low single-digit percentage of the forward pass, so end-to-end lands within noise of 1.0x (0.985x at seq=512, batch=4). Kernel launch overhead consumes the rest at small batch.
 
-2. **Triton kernels catastrophically regress on Mixtral-GPTQ, but not for the reason you'd think.** ~0.02–0.06x (17–59x slower). Profiling shows the slowdown is **74.8% host↔device memory copies** caused by monkey-patching modules inside the auto-gptq/`accelerate` runtime (broken device-placement hooks), *not* INT4 layout math: the kernel never touches the packed weights. Lesson: a kernel correct in isolation can still be unsafe to integrate into a managed quantized runtime.
+2. **A correct kernel can still be catastrophic to integrate.** On Mixtral-GPTQ the patched model ran 17x to 59x slower, and profiling shows 74.8% of runtime in host-device memory copies: monkey-patching modules inside the auto-gptq/accelerate runtime broke its device-placement hooks. The kernel never touched the packed INT4 weights. The failure was integration, not arithmetic.
 
-3. **Quantization barely moves the (top-2) routing distribution.** INT8 keeps 0.955 mean Jaccard overlap with FP16, INT4 0.933, a lower bound, since only the top-2 of OLMoE's top-8 was logged. Expert selection is robust because the top-1/top-2 margins are large.
+3. **Quantization changes routing substantially.** At OLMoE's native top-8, INT4 changes at least one expert for 46% of token positions, INT8 for 21%. Per slot that is 6.6% and 2.8% of selections respectively.
 
-4. **MoE routing structurally limits `torch.compile` (qualitatively).** Both models produce a graph break in the routing layer, keeping the routing dispatch in eager mode while attention/FFN compile, which is a real, model-independent property. The specific compile-mode speedups (≈3% OLMoE, ≈0.5% Mixtral) and "% compiled" were measured on lightweight 2-layer stubs and are within noise; treat them as directional, not real-model numbers.
+4. **And it barely matters.** Forcing the FP16 model to use INT4's expert selections, with full-precision weights throughout and a control verified neutral to six decimals, reproduces **2.7%** of INT4's degradation. The other 97% is quantization error inside the expert weights. MoE experts are substitutable enough that routing fidelity is measurable, monotonic in quantization strength, and close to inconsequential for output quality.
 
-5. **INT8 is the most deployable of the three, with a caveat.** Lowest measured (top-2) routing drift, no compilation instability, works on both families. Whether this holds at full top-8 and whether it preserves downstream accuracy is unverified (INT8/INT4 lm-eval not yet run).
+5. **The `torch.compile` limitation is a default, not a law.** The real model produces 23 graph breaks, 16 of them at a single `torch.nonzero` in the expert dispatch. Setting `torch._dynamo.config.capture_dynamic_output_shape_ops=True` removes all 23. Whether that is *faster* is unmeasured; unbacked symbolic shapes can generate worse code than an eager fallback.
 
----
+6. **Quantized routing is not reproducible across environments.** The same checkpoint on two A100 setups gave INT4 drift of 0.0667 and 0.1254 while FP16 routes agreed to 2 rows in 864. Anyone comparing MoE quantization results across papers should record their bitsandbytes version.
 
 ## Known Limitations
 
-A code-level audit of all three sub-studies against their committed outputs found the
-following. Read these before citing any number above.
-
-- Drift was measured at **top-2**, not OLMoE's native top-8, and on 5 generic prompts rather than an MMLU corpus. The thin-margin 7th/8th boundary, where flips are most likely, was never logged.
-- The **drift-to-quality link has not been measured**. INT8/INT4 accuracy was never run, and three precision points give two non-trivial drift values, which cannot support a correlation regardless.
-- Every quantitative compiler result comes from **randomly-initialized 2-layer stubs**, not the real models. The reported routing-overhead share is a scale artifact of that setup and should be retired rather than reproduced.
-- The Mixtral kernel regression is a host-device memcpy problem caused by patching modules inside a managed quantized runtime, **not** an INT4 layout incompatibility.
-- Single run, no seeds swept, no error bars.
-
-The `sweep`, `route_replay` and multi-model paths documented above exist to close the
-first two items; they have not yet been run on hardware.
-
----
+- **Accuracy differences are below noise.** At `--lm_eval_limit 500` the largest INT4 drop is about 0.8 sigma. The drift-to-quality *correlation* therefore rests on differences that cannot be resolved at this evaluation budget; the causal replay result does not, since NLL over 119,952 token positions has far lower variance than 500 multiple-choice outcomes.
+- **Two distinct drift values.** Three precisions give two non-trivial points, and any two points lie on a line. The correlation reported is a direction, not a result.
+- **One model for the causal claim.** Replay has run on OLMoE only.
+- **No error bars on drift.** Single prompt set, no seed sweep, no bootstrap.
+- **Kernel timing numbers predate the profiling fix.** The reported Amdahl fraction came from string-matching CUDA kernel names, which counted a residual add as RMSNorm, missed the variance reduction, and reported softmax as exactly 0.00% because it scanned only the top 15 ops. Attribution now uses `record_function` ranges around the real modules; the figures above are pending that re-measurement.
+- **Mixtral has no drift measurement.** FP16 is ~93 GB and the available checkpoint is GPTQ, which offers no unquantized reference, so drift against it is undefined.
+- **Compiler latency is unmeasured.** The graph-break counts are real; the claim that removing them helps is not made.
 
 ## Team
 
