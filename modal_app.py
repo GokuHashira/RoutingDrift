@@ -30,6 +30,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
     modal run modal_app.py::kernel_benchmark      # ~$0.30  E2E on the same machine
     modal run modal_app.py::compile_benchmark     # ~$1     does fusing the dispatch help?
+    modal run modal_app.py::backfill_nll          # ~$0.70  quality for OLMoE + DeepSeek
     modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
@@ -496,6 +497,9 @@ def deepseek_drift():
         "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
         "--output_dir", f"{RESULTS}/deepseek_v2_lite",
         "--top_k", "6", "--max_length", "128", "--seed", "0", "--skip_heatmaps",
+        # Reuse route dumps if a previous attempt left them, so a rerun pays only for what
+        # is missing. With --measure_nll the model is still loaded, since NLL needs it.
+        "--resume",
         # Drift with nothing to relate it to is half a result. The sweep supplies NLL for
         # OLMoE only, so without this the cross-model table has quality for one of three.
         "--measure_nll",
@@ -565,6 +569,62 @@ def qwen_drift():
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/qwen3_30b_a3b")
+
+
+# ---------------------------------------------------------------------------
+# Backfill -- quality for the two models measured before --measure_nll existed
+# ---------------------------------------------------------------------------
+@app.function(image=pinned_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=60 * 60)
+def backfill_nll():
+    """
+    Give OLMoE and DeepSeek an NLL measured in their OWN run.
+
+    Both were measured before run_experiment could record quality, so the cross-model
+    table has drift for three models and quality for one. The gap is not cosmetic: the
+    OLMoE numbers currently quoted are assembled across runs, int4 from the replay
+    artifact and int8 identified with the sweep's int8_t6 because threshold 6.0 is the
+    bitsandbytes default. Both identifications are defensible and neither is a measurement
+    of the run it is attributed to.
+
+    It also buys a third point on a question two models cannot settle. Comparing OLMoE and
+    Qwen, more routing churn means more damage at INT8 and LESS damage at INT4, which is
+    consistent with dNLL being dominated by weight error rather than routing but rests on
+    one pair. DeepSeek is 16B with an unquantized router, so it is a genuine test.
+
+    Cheap because of --resume: every route dump already exists, so each precision is
+    loaded only to run one forward pass per prompt. No route collection, no determinism
+    re-runs, no lm-eval. Roughly ten minutes for both models.
+
+    NOT run through task1, which would re-pay its lm-eval at limit 500. The accuracy
+    artifacts are written by a separate code path that is skipped when --run_lm_eval is
+    absent, so lm_eval_scores.csv and the correlation CSVs survive untouched; the drift
+    numbers are recomputed from the same reused routes and must come out identical, which
+    the verify step then checks.
+    """
+    _gpu_report()
+    for label, args_ in (
+        ("OLMoE", ["--model_name", OLMOE, *_rev(), "--top_k", "8",
+                   "--output_dir", f"{RESULTS}/olmoe_top8"]),
+        ("DeepSeek-V2-Lite", ["--model_name", "deepseek-ai/DeepSeek-V2-Lite", "--top_k", "6",
+                              "--output_dir", f"{RESULTS}/deepseek_v2_lite"]),
+    ):
+        print(f"\n{'=' * 70}\nbackfilling NLL for {label}\n{'=' * 70}")
+        _run(
+            "routingdrift.quantization.run_experiment",
+            *args_,
+            "--precisions", "fp16", "int8", "int4",
+            "--target_module", "mlp.gate",
+            "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
+            "--max_length", "128", "--seed", "0", "--skip_heatmaps",
+            "--resume",
+            "--measure_nll",
+        )
+    for d in ("olmoe_top8", "deepseek_v2_lite"):
+        _run("routingdrift.quantization.verify_reproducibility",
+             "--results_dir", f"{RESULTS}/{d}")
+    print("\nBoth summaries now carry nll and nll_delta_vs_baseline. Re-run")
+    print("compare_models locally: quality should read 3 of 3 rather than 1 of 3.")
 
 
 # ---------------------------------------------------------------------------
