@@ -66,9 +66,21 @@ verify:
 # '/' fails with "Is a directory", and the '**' glob form is deprecated and rejected.
 # Named remote paths work, so the stage directories are listed explicitly.
 STAGE_DIRS ?= smoke_top2 probe olmoe_top8 olmoe_sweep olmoe_replay \
-              compiler_real kernels_rerun deepseek_v2_lite qwen36_moe
+              compiler_real kernels_rerun deepseek_v2_lite qwen3_30b_a3b
 
 pull-results:
+	@# Fail loudly if the CLI is missing or logged out. Without this the per-directory
+	@# loop below reports every stage as "absent", because "command not found" matches
+	@# the same *"not found"* pattern a genuinely missing directory does -- so a shell
+	@# without modal on PATH looks identical to an empty volume.
+	@command -v modal >/dev/null 2>&1 || { \
+		echo "modal CLI not on PATH. Activate the venv that has it, then retry."; \
+		exit 1; }
+	@modal volume ls routingdrift-results >/dev/null 2>&1 || { \
+		echo "modal cannot read routingdrift-results. Check 'modal token new' and that"; \
+		echo "the active workspace is the one that owns the volume:"; \
+		modal volume ls routingdrift-results 2>&1 | tail -5; \
+		exit 1; }
 	rm -rf results_modal.partial && mkdir -p results_modal.partial
 	@# Destination is the PARENT directory, not the full target path. modal places the
 	@# entry inside it, the same way it handled mmlu_prompts.txt. Passing the full path
@@ -80,7 +92,9 @@ pull-results:
 		else \
 			rm -rf "results_modal.partial/$$d"; \
 			case "$$out" in \
-				*"not found"*|*"No such"*) echo "  absent  $$d" ;; \
+				*"command not found"*|*"No module named"*) \
+					echo "  ERROR   $$d: modal CLI broken: $$(echo "$$out" | tail -1)" ;; \
+				*"not found"*|*"No such"*) echo "  absent  $$d  (stage not run yet)" ;; \
 				*) echo "  FAILED  $$d: $$(echo "$$out" | tail -1)" ;; \
 			esac; \
 		fi; \
