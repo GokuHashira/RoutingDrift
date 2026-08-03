@@ -20,3 +20,19 @@ report.md
 # Former name of the same thing, still ignored so an old local copy cannot be committed.
 /results_modal/
 /results_modal.partial/
+
+# Superseded results. Kept on disk as provenance, deliberately NOT shared: each
+# contradicts a number the paper now reports. See results/README.md.
+/results/report_plots
+/results/report_plots_rerun/09_compiler_analysis.png
+/results/compiler/profiler_trace
+/results/compiler/nvtx_trace.json
+/results/compiler/metrics_summary.json
+/results/compiler/graph11_graph_breaks.png
+/results/compiler/graph12_compile_modes.png
+/results/compiler/graph13_roofline.png
+/results/compiler/graph14_dense_comparison.png
+/results/kernels_a100
+/results/kernels/olmoe/profile_amdahl.csv
+/results/kernels/olmoe/benchmark_olmoe.csv
+/results/kernels/olmoe/plots

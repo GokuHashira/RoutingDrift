@@ -498,9 +498,18 @@ make init-dev && make test
 
 # Figures. Needs matplotlib and numpy; use a venv that is NOT your Modal client venv.
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[viz]"   # matplotlib + numpy, no torch
-python -m routingdrift.reporting.generate_report
+pip install -e ".[viz]"   # matplotlib + numpy + pandas, no torch
+
+python -m routingdrift.reporting.generate_report                        # cross-study figures
+python -m routingdrift.kernels.results_table --model OLMoE  --out results/kernels_rerun/olmoe
+python -m routingdrift.kernels.results_table --model Mixtral --out results/kernels/mixtral/mixtral
 ```
+
+`results_table` reads the CSVs in whatever directory you point it at and writes plots
+beside them, so pointing it at `kernels_rerun` is what produces the per-model kernel
+figures from the corrected op attribution. The `kernels_a100` versions of those plots are
+gitignored: they were drawn from the string-matched profile that reported RMSNorm at 1.94%
+rather than 7.70%.
 
 `generate_report` prints its data sources before writing. Check them: it should read
 `results/olmoe_top8` and `results/kernels_rerun`, not `olmoe_top2_zaratan` or
