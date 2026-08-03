@@ -29,6 +29,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
     modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
     modal run modal_app.py::kernel_benchmark      # ~$0.30  E2E on the same machine
+    modal run modal_app.py::compile_benchmark     # ~$1     does fusing the dispatch help?
     modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
     modal run modal_app.py::diagnostics           # free-ish, prints the digest
 
@@ -467,6 +468,30 @@ def kernel_profile():
     print("\nCompare profile_op_fractions_measured.csv against the committed "
           "profile_amdahl.csv. A softmax_pct that is no longer exactly 0.00 is the "
           "clearest sign the old number was an artifact of scanning only the top 15 ops.")
+
+
+@app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
+              timeout=3 * 60 * 60)
+def compile_benchmark():
+    """
+    Test the mechanism the other three sub-studies imply.
+
+    The kernels deliver 0.999x against a 1.07x ceiling, the model is launch-bound, and
+    torch.compile fuses none of the expert dispatch because of 23 graph breaks that a
+    config flag removes. The inference joining those facts -- that fusing the dispatch
+    would unlock the kernel gain -- has not been tested. This times eager, eager+kernels,
+    compile, compile+capture, and compile+capture+kernels at identical shapes.
+
+    Budget more than the plain benchmark: compilation is billed, and the dynamic-capture
+    configuration is the most likely of the five to be slow or to fail outright.
+    """
+    _gpu_report()
+    ENV["OLMOE_PATH"] = OLMOE
+    _run(
+        "routingdrift.kernels.compile_benchmark",
+        "--out", f"{RESULTS}/kernels_rerun/olmoe",
+        "--shapes", "512x4,1024x4",
+    )
 
 
 @app.function(image=kernel_image, gpu=GPU, volumes=VOLUMES, secrets=[GIT_SECRET],
