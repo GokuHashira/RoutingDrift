@@ -287,6 +287,24 @@ def _extract_primary_metric(task_metrics: dict[str, Any]) -> tuple[str, float] |
     return None
 
 
+def _extract_stderr(task_metrics: dict[str, Any], metric_key: str) -> float | None:
+    """
+    The standard error lm-eval reports next to each metric.
+
+    Without it an accuracy drop cannot be told apart from sampling noise. At limit=500 the
+    SE on these tasks is roughly 0.004 to 0.02, and the measured INT8 drop on MMLU was
+    0.0011 -- a fraction of one SE. Reporting the point estimate alone would present that
+    as a degradation.
+    """
+    base = metric_key.split(",", 1)[0]
+    suffix = metric_key[len(base):]  # ",none" etc, kept so the filter matches
+    for candidate in (f"{base}_stderr{suffix}", f"{base}_stderr"):
+        value = task_metrics.get(candidate)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+    return None
+
+
 def extract_task_accuracies(
     results: dict[str, Any],
     tasks: list[str],
@@ -303,7 +321,11 @@ def extract_task_accuracies(
         if task in task_results and isinstance(task_results[task], dict):
             metric = _extract_primary_metric(task_results[task])
             if metric is not None:
-                parsed[task] = {"accuracy": metric[1], "metric": metric[0]}
+                parsed[task] = {
+                    "accuracy": metric[1],
+                    "metric": metric[0],
+                    "stderr": _extract_stderr(task_results[task], metric[0]),
+                }
                 continue
 
         # Group fallback: average matching subtasks, common for some harness task groups.

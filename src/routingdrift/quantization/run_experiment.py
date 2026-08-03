@@ -278,15 +278,18 @@ def _run_lm_eval_matrix(
             if not task_info:
                 print(f"[lm-eval WARNING] {variant}/{task} produced no parseable metric")
                 continue
+            stderr = task_info.get("stderr")
             eval_rows.append(
                 {
                     "variant": variant,
                     "task": task,
                     "accuracy": float(task_info["accuracy"]),
                     "metric": str(task_info["metric"]),
+                    "stderr": "" if stderr is None else float(stderr),
                 }
             )
-            print(f"[lm-eval] {variant}/{task} = {task_info['accuracy']:.4f} "
+            se_note = f" +/- {stderr:.4f}" if stderr is not None else ""
+            print(f"[lm-eval] {variant}/{task} = {task_info['accuracy']:.4f}{se_note} "
                   f"({task_info['metric']})")
 
     return eval_rows

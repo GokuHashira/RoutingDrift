@@ -152,13 +152,25 @@ def digest(results_dir: Path) -> None:
                 base = by.get(("fp16", task))
                 if not base:
                     continue
-                drops = [
-                    (v, float(base["accuracy"]) - float(by[(v, task)]["accuracy"]))
-                    for v in variants if v != "fp16" and (v, task) in by
-                ]
-                if drops:
-                    print(f"    drop vs fp16, {task}: " +
-                          "  ".join(f"{v}={d:+.4f}" for v, d in drops))
+                for v in variants:
+                    if v == "fp16" or (v, task) not in by:
+                        continue
+                    row = by[(v, task)]
+                    drop = float(base["accuracy"]) - float(row["accuracy"])
+                    # Combined SE of a difference of two independent estimates.
+                    try:
+                        se = (float(base.get("stderr") or 0) ** 2
+                              + float(row.get("stderr") or 0) ** 2) ** 0.5
+                    except ValueError:
+                        se = 0.0
+                    if se:
+                        sigma = abs(drop) / se
+                        verdict = "NOISE" if sigma < 2 else "significant"
+                        print(f"    {task:<12} {v:<6} drop={drop:+.4f} +/- {se:.4f} "
+                              f"({sigma:.1f} sigma, {verdict})")
+                    else:
+                        print(f"    {task:<12} {v:<6} drop={drop:+.4f} "
+                              f"(no stderr recorded; cannot tell this from noise)")
 
         corr_re = run / "drift_accuracy_correlations.csv"
         if corr_re.is_file():
@@ -169,12 +181,17 @@ def digest(results_dir: Path) -> None:
                 print(f"    {r.get('group',''):<12} n={n:<4} "
                       f"pearson={r.get('pearson','') or 'n/a':<10} "
                       f"spearman={r.get('spearman','') or 'n/a'}")
-            try:
-                if max(int(r.get("n_points", 0)) for r in rows) < 4:
-                    print("    ^ too few points for a correlation; this is a direction, not")
-                    print("      a result. The sweep is what makes it reportable.")
-            except ValueError:
-                pass
+            # Warn on DISTINCT drift values, not row count. n_points counts
+            # variant x task pairs, so three precisions across two tasks reports n=4 while
+            # resting on two distinct drift values -- and any two points give pearson=1.0.
+            distinct = len({
+                r["jaccard_drift"] for r in _rows(run / "drift_vs_accuracy_drop.csv")
+                if r.get("jaccard_drift")
+            }) if (run / "drift_vs_accuracy_drop.csv").is_file() else 0
+            if distinct and distinct < 4:
+                print(f"    ^ only {distinct} DISTINCT drift value(s) behind these numbers.")
+                print("      Two points always give pearson=1.0; this is a direction, not a")
+                print("      correlation. The sweep is what makes it reportable.")
 
         # Q3: how big is the replay masking artifact on the real model?
         replay = run / "replay_result.json"
