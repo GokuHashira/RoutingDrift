@@ -1,0 +1,4 @@
+[console_scripts]
+routingdrift-build-prompts = routingdrift.quantization.build_mmlu_prompts:main
+routingdrift-experiment = routingdrift.quantization.run_experiment:main
+routingdrift-verify = routingdrift.quantization.verify_reproducibility:main

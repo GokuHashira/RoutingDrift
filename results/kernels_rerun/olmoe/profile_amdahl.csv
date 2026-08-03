@@ -1,0 +1,8 @@
+metric,value
+rmsnorm_pct,7.7
+softmax_pct,0.17
+combined_pct,7.87
+rmsnorm_speedup,7.274
+softmax_speedup,2.007
+effective_speedup,6.876
+predicted_e2e_speedup,1.072

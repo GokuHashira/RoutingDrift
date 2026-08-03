@@ -1,0 +1,75 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/quantization/route_replay.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --baseline_routes /results/olmoe_top8/routes_fp16.json --replay_routes /results/olmoe_top8/routes_int4.json --quant_precision int4 --top_k 8 --target_module mlp.gate --max_length 128 --output_dir /results/olmoe_replay",
+  "experiment": "route_replay",
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "829c9487b0c09b9b118a90d5028ca7021b28a685",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100-SXM4-80GB",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "log_file": "/results/olmoe_replay/logs/replay_20260803T041330Z.log",
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.46.0",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "result": {
+    "artifact_over_degradation": 0.0,
+    "control_artifact_is_neutral": true,
+    "control_info": {
+      "blocks_hooked": 16,
+      "notes": [],
+      "rows_replayed": 119952
+    },
+    "intervention_artifact": 0.0,
+    "method": "block",
+    "nll_control_fp16_routes": 2.2766959561807845,
+    "nll_fp16": 2.2766959561807845,
+    "nll_quantized": 2.3633380756356255,
+    "nll_replay": 2.2790276323989933,
+    "norm_topk_prob": false,
+    "prompts": 100,
+    "quant_precision": "int4",
+    "replay_info": {
+      "blocks_hooked": 16,
+      "notes": [],
+      "rows_replayed": 119952
+    },
+    "routing_attribution": 0.026911578720372187,
+    "routing_attribution_uncorrected": 0.026911578720372187
+  },
+  "seeding": {
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "deterministic_requested": true,
+    "matmul_allow_tf32": false,
+    "seed": 0,
+    "use_deterministic_algorithms": "True (warn_only)"
+  },
+  "timestamp_utc": "2026-08-03T04:21:32.647645+00:00"
+}

@@ -1,0 +1,447 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name deepseek-ai/DeepSeek-V2-Lite --precisions fp16 int8 int4 --target_module mlp.gate --prompts_file /results/mmlu_prompts.txt --output_dir /results/deepseek_v2_lite --top_k 6 --max_length 128 --seed 0 --skip_heatmaps
+# started : 2026-08-03T05:03:39.880050+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/deepseek_v2_lite/logs/run_experiment_20260803T050339Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Loaded 100 prompts from /results/mmlu_prompts.txt
+[Saved] /results/deepseek_v2_lite/prompts_used.txt
+[Saved] /results/deepseek_v2_lite/run_manifest.json
+
+========== Loading variant: fp16 ==========
+Downloading shards:   0%|          | 0/4 [00:00<?, ?it/s]Downloading shards:  25%|##5       | 1/4 [00:55<02:45, 55.29s/it]Downloading shards:  50%|#####     | 2/4 [01:18<01:13, 36.62s/it]Downloading shards:  75%|#######5  | 3/4 [01:42<00:30, 30.57s/it]Downloading shards: 100%|##########| 4/4 [01:59<00:00, 25.25s/it]Downloading shards: 100%|##########| 4/4 [01:59<00:00, 29.83s/it]
+2026-08-03:05:05:56,730 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:07<00:23,  7.85s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:15<00:15,  7.97s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:23<00:07,  7.93s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:29<00:00,  6.86s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:29<00:00,  7.25s/it]
+[load] quantized modules: 0 of 5182 Linear (model is unquantized)
+
+========== Collecting routes for fp16 ==========
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] 26 router hooks attached (num_experts=64, top_k=6)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 26 modules, 201734 token rows total
+
+========== Determinism re-run for fp16 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/deepseek_v2_lite/routes_fp16.json.gz
+
+========== Loading variant: int8 ==========
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:06<00:18,  6.23s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:12<00:12,  6.25s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:18<00:06,  6.26s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:22<00:00,  5.44s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:22<00:00,  5.74s/it]
+[load] quantized modules: 5181 of 5182 Linear [Linear8bitLt=5181]; 27 layers touched, layers 0-26
+
+========== Collecting routes for int8 ==========
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] 26 router hooks attached (num_experts=64, top_k=6)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 26 modules, 201734 token rows total
+
+========== Determinism re-run for int8 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/deepseek_v2_lite/routes_int8.json.gz
+
+========== Loading variant: int4 ==========
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|##5       | 1/4 [00:06<00:18,  6.01s/it]Loading checkpoint shards:  50%|#####     | 2/4 [00:12<00:12,  6.21s/it]Loading checkpoint shards:  75%|#######5  | 3/4 [00:18<00:06,  6.24s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:22<00:00,  5.44s/it]Loading checkpoint shards: 100%|##########| 4/4 [00:22<00:00,  5.71s/it]
+[load] quantized modules: 5181 of 5182 Linear [Linear4bit=5181]; 27 layers touched, layers 0-26
+
+========== Collecting routes for int4 ==========
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.16.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.17.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.18.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.19.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.20.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.21.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.22.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.23.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.24.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.25.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.26.mlp.gate
+[RoutingLogger] 26 router hooks attached (num_experts=64, top_k=6)
+[collect_routes] Prompt 1/100
+[collect_routes] Prompt 2/100
+[collect_routes] Prompt 3/100
+[collect_routes] Prompt 4/100
+[collect_routes] Prompt 5/100
+[collect_routes] Prompt 6/100
+[collect_routes] Prompt 7/100
+[collect_routes] Prompt 8/100
+[collect_routes] Prompt 9/100
+[collect_routes] Prompt 10/100
+[collect_routes] Prompt 11/100
+[collect_routes] Prompt 12/100
+[collect_routes] Prompt 13/100
+[collect_routes] Prompt 14/100
+[collect_routes] Prompt 15/100
+[collect_routes] Prompt 16/100
+[collect_routes] Prompt 17/100
+[collect_routes] Prompt 18/100
+[collect_routes] Prompt 19/100
+[collect_routes] Prompt 20/100
+[collect_routes] Prompt 21/100
+[collect_routes] Prompt 22/100
+[collect_routes] Prompt 23/100
+[collect_routes] Prompt 24/100
+[collect_routes] Prompt 25/100
+[collect_routes] Prompt 26/100
+[collect_routes] Prompt 27/100
+[collect_routes] Prompt 28/100
+[collect_routes] Prompt 29/100
+[collect_routes] Prompt 30/100
+[collect_routes] Prompt 31/100
+[collect_routes] Prompt 32/100
+[collect_routes] Prompt 33/100
+[collect_routes] Prompt 34/100
+[collect_routes] Prompt 35/100
+[collect_routes] Prompt 36/100
+[collect_routes] Prompt 37/100
+[collect_routes] Prompt 38/100
+[collect_routes] Prompt 39/100
+[collect_routes] Prompt 40/100
+[collect_routes] Prompt 41/100
+[collect_routes] Prompt 42/100
+[collect_routes] Prompt 43/100
+[collect_routes] Prompt 44/100
+[collect_routes] Prompt 45/100
+[collect_routes] Prompt 46/100
+[collect_routes] Prompt 47/100
+[collect_routes] Prompt 48/100
+[collect_routes] Prompt 49/100
+[collect_routes] Prompt 50/100
+[collect_routes] Prompt 51/100
+[collect_routes] Prompt 52/100
+[collect_routes] Prompt 53/100
+[collect_routes] Prompt 54/100
+[collect_routes] Prompt 55/100
+[collect_routes] Prompt 56/100
+[collect_routes] Prompt 57/100
+[collect_routes] Prompt 58/100
+[collect_routes] Prompt 59/100
+[collect_routes] Prompt 60/100
+[collect_routes] Prompt 61/100
+[collect_routes] Prompt 62/100
+[collect_routes] Prompt 63/100
+[collect_routes] Prompt 64/100
+[collect_routes] Prompt 65/100
+[collect_routes] Prompt 66/100
+[collect_routes] Prompt 67/100
+[collect_routes] Prompt 68/100
+[collect_routes] Prompt 69/100
+[collect_routes] Prompt 70/100
+[collect_routes] Prompt 71/100
+[collect_routes] Prompt 72/100
+[collect_routes] Prompt 73/100
+[collect_routes] Prompt 74/100
+[collect_routes] Prompt 75/100
+[collect_routes] Prompt 76/100
+[collect_routes] Prompt 77/100
+[collect_routes] Prompt 78/100
+[collect_routes] Prompt 79/100
+[collect_routes] Prompt 80/100
+[collect_routes] Prompt 81/100
+[collect_routes] Prompt 82/100
+[collect_routes] Prompt 83/100
+[collect_routes] Prompt 84/100
+[collect_routes] Prompt 85/100
+[collect_routes] Prompt 86/100
+[collect_routes] Prompt 87/100
+[collect_routes] Prompt 88/100
+[collect_routes] Prompt 89/100
+[collect_routes] Prompt 90/100
+[collect_routes] Prompt 91/100
+[collect_routes] Prompt 92/100
+[collect_routes] Prompt 93/100
+[collect_routes] Prompt 94/100
+[collect_routes] Prompt 95/100
+[collect_routes] Prompt 96/100
+[collect_routes] Prompt 97/100
+[collect_routes] Prompt 98/100
+[collect_routes] Prompt 99/100
+[collect_routes] Prompt 100/100
+[collect_routes] captured 26 modules, 201734 token rows total
+
+========== Determinism re-run for int4 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/deepseek_v2_lite/routes_int4.json.gz
+[guard] baseline-vs-baseline RS = 1.0000000000 (expected 1.0)
+
+Research Metrics int8 vs fp16
+  Routing similarity RS : 0.9581
+  Jaccard routing drift : 0.0419
+  Overlap@k             : 0.9754
+  Selection shift       : 0.0246
+
+Research Metrics int4 vs fp16
+  Routing similarity RS : 0.8697
+  Jaccard routing drift : 0.1303
+  Overlap@k             : 0.9219
+  Selection shift       : 0.0781
+
+[Saved] /results/deepseek_v2_lite/routing_drift_summary.csv
+[Saved] /results/deepseek_v2_lite/routing_drift_layers.csv
+[Saved] /results/deepseek_v2_lite/summary.md
+[Saved] /results/deepseek_v2_lite/run_manifest.json
+
+[Done] Results in /results/deepseek_v2_lite   Log: /results/deepseek_v2_lite/logs/run_experiment_20260803T050339Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T05:24:39.276152+00:00

@@ -1,0 +1,357 @@
+"""
+harness_eval.py
+
+lm-evaluation-harness integration for MMLU/GSM8K/HellaSwag.
+"""
+
+from __future__ import annotations
+
+import gc
+import json
+from pathlib import Path
+from typing import Any
+
+SUPPORTED_EVAL_TASKS = ("mmlu", "gsm8k", "hellaswag")
+PRIMARY_METRIC_CANDIDATES = (
+    "acc_norm",
+    "acc",
+    "exact_match",
+    "em",
+)
+
+
+def build_hf_model_args(
+    model_name: str,
+    precision: str,
+    device: str = "cuda",
+    trust_remote_code: bool = True,
+) -> str:
+    """
+    Build lm-eval HF model_args string for a precision setting.
+    """
+    # No clean_up_tokenization_spaces here. lm-eval forwards unrecognised model_args keys
+    # straight into the model constructor, and OlmoeForCausalLM.__init__ rejects it:
+    #   OlmoeForCausalLM.__init__() got an unexpected keyword argument
+    # Same failure shape as the dtype/torch_dtype bug. It is a tokenizer setting anyway.
+    parts = [
+        f"pretrained={model_name}",
+        f"device={device}",
+    ]
+    if trust_remote_code:
+        parts.append("trust_remote_code=True")
+
+    precision = precision.lower().strip()
+    if precision == "gptq":
+        pass
+    elif precision == "fp16":
+        parts.append("dtype=float16")
+    elif precision == "int8":
+        parts.append("load_in_8bit=True")
+    elif precision == "int4":
+        parts.extend(
+            [
+                "load_in_4bit=True",
+                "bnb_4bit_compute_dtype=float16",
+                "bnb_4bit_quant_type=nf4",
+                "bnb_4bit_use_double_quant=True",
+            ]
+        )
+    else:
+        raise ValueError(f"Unsupported precision for lm-eval: {precision}")
+
+    return ",".join(parts)
+
+
+def _patch_datasets_trust_remote_code() -> None:
+    """
+    lm-eval 0.4.4 passes `trust_remote_code` to datasets.load_dataset; datasets 3.x removed
+    the argument, so every MMLU subtask dies with "`trust_remote_code` is not supported
+    anymore". Strip it here rather than downgrading datasets -- datasets<3 turned out to
+    break other things ("must be called with a dataclass type or instance") without fixing
+    this.
+
+    Must run BEFORE lm_eval is imported: lm_eval does `from datasets import load_dataset`
+    at import time, and a reference captured then would bypass the patch.
+    """
+    import inspect
+
+    import datasets
+
+    try:
+        if "trust_remote_code" in inspect.signature(datasets.load_dataset).parameters:
+            return  # still supported; nothing to do
+    except (TypeError, ValueError):
+        return
+
+    original = datasets.load_dataset
+
+    def patched(*args, **kwargs):
+        kwargs.pop("trust_remote_code", None)
+        return original(*args, **kwargs)
+
+    datasets.load_dataset = patched
+    print("[lm-eval] stripped trust_remote_code from datasets.load_dataset "
+          "(removed in datasets 3.x, still passed by lm-eval 0.4.4)")
+
+
+def _patch_lm_eval_git_hash(lm_eval_module) -> None:
+    """
+    Avoid noisy git stderr in environments where the run directory isn't a git repo.
+    """
+    try:
+        evaluator = lm_eval_module.evaluator
+    except Exception:
+        return
+
+    if hasattr(evaluator, "get_git_commit_hash"):
+        evaluator.get_git_commit_hash = lambda: "unknown"
+
+
+class _relaxed_cudnn:
+    """
+    Temporarily allow non-deterministic cuDNN algorithms.
+
+    set_global_seed pins cudnn.deterministic=True so routing is bit-reproducible. That
+    restricts cuDNN to deterministic execution plans, and during generation at batch sizes
+    around 60 there may be none, which surfaces as:
+
+        cuDNN Frontend error: [cudnn_frontend] Error: No execution plans support the graph
+
+    Accuracy evaluation is greedy and does not need bit-determinism the way route logging
+    does, so the constraint is relaxed here and restored afterwards. Route collection is
+    unaffected: it happens outside this scope.
+    """
+
+    def __enter__(self):
+        import torch
+
+        self._prev = (torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
+        return self
+
+    def __exit__(self, *_exc):
+        import torch
+
+        torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = self._prev
+        return False
+
+
+def run_lm_eval(
+    model_name: str,
+    precision: str,
+    tasks: list[str],
+    output_path: str | Path,
+    num_fewshot: int = 5,
+    batch_size: str = "auto",
+    limit: int | None = None,
+    device: str = "cuda",
+    quant_config: Any = None,
+    skip_modules: Any = None,
+    revision: str | None = None,
+) -> dict[str, Any]:
+    """
+    Run lm-evaluation-harness via Python API and persist full JSON output.
+
+    `quant_config`/`skip_modules` must be forwarded whenever the caller is evaluating a
+    specific sweep configuration. Without them this falls back to bitsandbytes' default
+    int8/int4 settings, so every nf4/fp4/threshold variant would be scored with the same
+    weights: 15 distinct drift values collapsing onto 2 distinct accuracy values, and a
+    correlation computed over that would be an artifact.
+    """
+    # Order matters: lm_eval binds load_dataset at import time.
+    _patch_datasets_trust_remote_code()
+
+    try:
+        import lm_eval
+    except ImportError as exc:
+        raise RuntimeError(
+            "lm-evaluation-harness is not installed. Install with: pip install lm-eval"
+        ) from exc
+
+    _patch_lm_eval_git_hash(lm_eval)
+
+    precision = precision.lower().strip()
+
+    if precision in {"int8", "int4"}:
+        # For some remote-code models (including OLMoE variants), passing
+        # load_in_8bit/load_in_4bit via lm-eval model_args can leak through
+        # to model __init__. Load quantized model ourselves and pass LM object.
+        try:
+            from lm_eval.models.huggingface import HFLM
+        except ImportError as exc:
+            raise RuntimeError(
+                "Your lm-eval version does not expose lm_eval.models.huggingface.HFLM. "
+                "Upgrade lm-eval to a recent version to evaluate int8/int4 variants safely."
+            ) from exc
+        from routingdrift.quantization.model_loader import load_model
+
+        model, tokenizer = load_model(
+            model_name=model_name,
+            precision=precision,
+            device_map="auto",
+            trust_remote_code=True,
+            revision=revision,
+            quant_config=quant_config,
+            skip_modules=skip_modules,
+        )
+        from routingdrift.quantization.model_loader import summarize_quantized_modules
+
+        print(f"[lm-eval] {summarize_quantized_modules(model)}")
+        lm = HFLM(
+            pretrained=model,
+            tokenizer=tokenizer,
+            trust_remote_code=True,
+            batch_size=batch_size,
+            device=device,
+            clean_up_tokenization_spaces=False,
+        )
+        try:
+            with _relaxed_cudnn():
+                results = lm_eval.simple_evaluate(
+                    model=lm,
+                    tasks=tasks,
+                    num_fewshot=num_fewshot,
+                    batch_size=batch_size,
+                    limit=limit,
+                )
+        finally:
+            del lm
+            del model
+            del tokenizer
+            gc.collect()
+    else:
+        model_args = build_hf_model_args(
+            model_name=model_name,
+            precision=precision,
+            device=device,
+        )
+        with _relaxed_cudnn():
+            results = lm_eval.simple_evaluate(
+                model="hf",
+                model_args=model_args,
+                tasks=tasks,
+                num_fewshot=num_fewshot,
+                batch_size=batch_size,
+                limit=limit,
+            )
+
+    sanitized = _sanitize_for_json(results)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(sanitized, f, indent=2)
+    return results
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively remove non-JSON-serializable objects from nested dicts/lists."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        return str(obj)
+
+
+def _extract_primary_metric(task_metrics: dict[str, Any]) -> tuple[str, float] | None:
+    """
+    Pull the headline metric out of one lm-eval task result.
+
+    lm-eval 0.4.x keys metrics as "{metric},{filter}" -- "acc_norm,none",
+    "exact_match,strict-match" -- not as the bare metric name. Matching only the bare name
+    silently returns nothing, and the caller then discards a completed evaluation as
+    "no parseable metric". That cost several full eval runs whose compute had already
+    finished. kernels/eval_accuracy.py had this right; this module did not.
+    """
+    for metric_name in PRIMARY_METRIC_CANDIDATES:
+        value = task_metrics.get(metric_name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return metric_name, float(value)
+
+        # "acc_norm,none" and friends. Prefer an unfiltered result when several exist.
+        matches = [
+            (key, val)
+            for key, val in task_metrics.items()
+            if isinstance(key, str)
+            and key.split(",", 1)[0] == metric_name
+            and isinstance(val, (int, float))
+            and not isinstance(val, bool)
+        ]
+        if matches:
+            matches.sort(key=lambda kv: (not kv[0].endswith(",none"), kv[0]))
+            key, val = matches[0]
+            return key, float(val)
+    return None
+
+
+def _extract_stderr(task_metrics: dict[str, Any], metric_key: str) -> float | None:
+    """
+    The standard error lm-eval reports next to each metric.
+
+    Without it an accuracy drop cannot be told apart from sampling noise. At limit=500 the
+    SE on these tasks is roughly 0.004 to 0.02, and the measured INT8 drop on MMLU was
+    0.0011 -- a fraction of one SE. Reporting the point estimate alone would present that
+    as a degradation.
+    """
+    base = metric_key.split(",", 1)[0]
+    suffix = metric_key[len(base):]  # ",none" etc, kept so the filter matches
+    for candidate in (f"{base}_stderr{suffix}", f"{base}_stderr"):
+        value = task_metrics.get(candidate)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+    return None
+
+
+def extract_task_accuracies(
+    results: dict[str, Any],
+    tasks: list[str],
+) -> dict[str, dict[str, float | str]]:
+    """
+    Parse lm-eval result JSON into task -> {"accuracy": float, "metric": str}.
+    """
+    parsed: dict[str, dict[str, float | str]] = {}
+    task_results = results.get("results", {})
+    if not isinstance(task_results, dict):
+        return parsed
+
+    for task in tasks:
+        if task in task_results and isinstance(task_results[task], dict):
+            metric = _extract_primary_metric(task_results[task])
+            if metric is not None:
+                parsed[task] = {
+                    "accuracy": metric[1],
+                    "metric": metric[0],
+                    "stderr": _extract_stderr(task_results[task], metric[0]),
+                }
+                continue
+
+        # Group fallback: average matching subtasks, common for some harness task groups.
+        subtask_scores: list[float] = []
+        subtask_metric_name = ""
+        prefix = f"{task}_"
+        for subtask_name, metrics in task_results.items():
+            if not isinstance(subtask_name, str) or not subtask_name.startswith(prefix):
+                continue
+            if not isinstance(metrics, dict):
+                continue
+            metric = _extract_primary_metric(metrics)
+            if metric is None:
+                continue
+            subtask_metric_name = metric[0]
+            subtask_scores.append(metric[1])
+
+        if subtask_scores:
+            parsed[task] = {
+                "accuracy": sum(subtask_scores) / len(subtask_scores),
+                "metric": subtask_metric_name or "avg_subtasks",
+            }
+        elif task in task_results and isinstance(task_results[task], dict):
+            # Report the keys that were present. A silent miss here discards an evaluation
+            # that already ran, and guessing at the schema from the outside is expensive.
+            print(f"[lm-eval] no known metric for task {task!r}; available keys: "
+                  f"{sorted(k for k in task_results[task] if isinstance(k, str))}")
+
+    return parsed

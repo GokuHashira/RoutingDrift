@@ -1,0 +1,25 @@
+{
+  "prompts": 100,
+  "quant_precision": "int4",
+  "nll_fp16": 2.2766959561807845,
+  "nll_control_fp16_routes": 2.2766959561807845,
+  "intervention_artifact": 0.0,
+  "artifact_over_degradation": 0.0,
+  "method": "block",
+  "control_info": {
+    "blocks_hooked": 16,
+    "rows_replayed": 119952,
+    "notes": []
+  },
+  "norm_topk_prob": false,
+  "nll_replay": 2.2790276323989933,
+  "nll_quantized": 2.3633380756356255,
+  "routing_attribution": 0.026911578720372187,
+  "routing_attribution_uncorrected": 0.026911578720372187,
+  "control_artifact_is_neutral": true,
+  "replay_info": {
+    "blocks_hooked": 16,
+    "rows_replayed": 119952,
+    "notes": []
+  }
+}

@@ -1,0 +1,184 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_sweep --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --resume --quality nll
+# started : 2026-08-03T06:06:13.572966+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/olmoe_sweep/logs/sweep_20260803T060613Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[sweep] 100 prompts
+[sweep] 15 configurations: fp16, int8_t0, int8_t3, int8_t6, int8_t12, nf4, nf4_dq, fp4, fp4_dq, nf4_fp32c, nf4_L2, nf4_L4, nf4_L8, nf4_L12, nf4_L16
+[Saved] /results/olmoe_sweep/run_manifest.json
+[sweep] resuming: 3 config(s) already scored (fp16, int8_t0, int8_t3)
+
+======================================================================
+[1/15] fp16 -- Unquantized reference
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-03:06:06:21,472 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:07<00:15,  7.59s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:16<00:08,  8.09s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:22<00:00,  7.27s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:22<00:00,  7.44s/it]
+[sweep] quantized modules: 0 of 3153 Linear (model is unquantized)
+[sweep] 16 router-bearing layers (config reports num_hidden_layers=16)
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[sweep] fp16: NLL=2.276696
+[sweep] fp16: jaccard_drift=0.0000  gate_kl=0.000e+00  vram=13.0GB  178s
+
+======================================================================
+[2/15] int8_t0 -- LLM.int8, outlier threshold 0.0
+======================================================================
+[sweep] SKIP int8_t0: already scored in a previous attempt
+
+======================================================================
+[3/15] int8_t3 -- LLM.int8, outlier threshold 3.0
+======================================================================
+[sweep] SKIP int8_t3: already scored in a previous attempt
+
+======================================================================
+[4/15] int8_t6 -- LLM.int8, outlier threshold 6.0 (bnb default)
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:11,  5.78s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:10<00:05,  5.16s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:14<00:00,  4.83s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:14<00:00,  4.98s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+[sweep] int8_t6: NLL=2.279813
+[sweep] int8_t6: jaccard_drift=0.0488  gate_kl=7.268e-04  vram=19.7GB  583s
+
+======================================================================
+[5/15] int8_t12 -- LLM.int8, outlier threshold 12.0
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:04<00:09,  4.80s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:10<00:05,  5.40s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:15<00:00,  5.29s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:15<00:00,  5.26s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+[sweep] int8_t12: NLL=2.303141
+[sweep] int8_t12: jaccard_drift=0.0498  gate_kl=1.109e-03  vram=26.3GB  421s
+
+======================================================================
+[6/15] nf4 -- 4-bit normal-float
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:11,  5.75s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.11s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.61s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.71s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+[sweep] nf4: NLL=2.363891
+[sweep] nf4: jaccard_drift=0.1140  gate_kl=4.976e-03  vram=30.2GB  241s
+
+======================================================================
+[7/15] nf4_dq -- 4-bit normal-float + double quant
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:13,  6.59s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:06,  6.65s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  5.99s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.17s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+[sweep] nf4_dq: NLL=2.363338
+[sweep] nf4_dq: jaccard_drift=0.1142  gate_kl=5.013e-03  vram=33.9GB  291s
+
+======================================================================
+[8/15] fp4 -- 4-bit float
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:11,  5.99s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.09s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.57s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.70s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+[sweep] fp4: NLL=2.390194
+[sweep] fp4: jaccard_drift=0.1524  gate_kl=9.201e-03  vram=37.8GB  242s
+
+======================================================================
+[9/15] fp4_dq -- 4-bit float + double quant
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.39s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.40s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.81s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.97s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+[sweep] fp4_dq: NLL=2.389313
+[sweep] fp4_dq: jaccard_drift=0.1526  gate_kl=9.248e-03  vram=41.4GB  285s
+
+======================================================================
+[10/15] nf4_fp32c -- 4-bit nf4, fp32 compute dtype
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:11,  5.67s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:10<00:05,  5.22s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:15<00:00,  5.19s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:15<00:00,  5.24s/it]
+[sweep] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+/usr/local/lib/python3.11/site-packages/bitsandbytes/nn/modules.py:452: UserWarning: Input type into Linear4bit is torch.float16, but bnb_4bit_compute_dtype=torch.float32 (default). This will lead to slow inference or training speed.
+  warnings.warn(
+/usr/local/lib/python3.11/site-packages/bitsandbytes/nn/modules.py:447: UserWarning: Input type into Linear4bit is torch.float16, but bnb_4bit_compute_dtype=torch.float32 (default). This will lead to slow inference.
+  warnings.warn(
+[sweep] nf4_fp32c: NLL=2.363790
+[sweep] nf4_fp32c: jaccard_drift=0.1140  gate_kl=4.974e-03  vram=45.3GB  277s
+
+======================================================================
+[11/15] nf4_L2 -- nf4 on the first 2 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 14 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.32s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.35s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.66s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.85s/it]
+[sweep] quantized modules: 395 of 3153 Linear [Linear4bit=395]; 2 layers touched, layers 0-1
+[sweep] nf4_L2: NLL=2.293530
+[sweep] nf4_L2: jaccard_drift=0.0626  gate_kl=1.361e-03  vram=57.0GB  187s
+
+======================================================================
+[12/15] nf4_L4 -- nf4 on the first 4 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 12 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.24s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:12<00:06,  6.28s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.63s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:17<00:00,  5.80s/it]
+[sweep] quantized modules: 789 of 3153 Linear [Linear4bit=789]; 4 layers touched, layers 0-3
+[sweep] nf4_L4: NLL=2.355843
+[sweep] nf4_L4: jaccard_drift=0.0814  gate_kl=2.476e-03  vram=67.4GB  203s
+
+======================================================================
+[13/15] nf4_L8 -- nf4 on the first 8 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 8 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.45s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:06,  6.55s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  5.84s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.02s/it]
+[sweep] quantized modules: 1577 of 3153 Linear [Linear4bit=1577]; 8 layers touched, layers 0-7
+[sweep] nf4_L8: NLL=2.360191
+[sweep] nf4_L8: jaccard_drift=0.0978  gate_kl=3.410e-03  vram=75.5GB  229s
+
+======================================================================
+[14/15] nf4_L12 -- nf4 on the first 12 layers only
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 4 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:08<00:16,  8.06s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:17<00:08,  8.69s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:19<00:09,  9.82s/it]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 517, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 513, in main
+    return run_sweep(ap.parse_args())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/sweep.py", line 183, in run_sweep
+    model, tokenizer = load_model(
+                       ^^^^^^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/model_loader.py", line 190, in load_model
+    model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/models/auto/auto_factory.py", line 564, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4224, in from_pretrained
+    ) = cls._load_pretrained_model(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4727, in _load_pretrained_model
+    new_error_msgs, offload_index, state_dict_index = _load_state_dict_into_meta_model(
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/transformers/modeling_utils.py", line 992, in _load_state_dict_into_meta_model
+    set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+  File "/usr/local/lib/python3.11/site-packages/accelerate/utils/modeling.py", line 353, in set_module_tensor_to_device
+    new_value = value.to(device, non_blocking=non_blocking)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 79.25 GiB of which 5.94 MiB is free. Process 1 has 79.24 GiB memory in use. Of the allocated memory 78.67 GiB is allocated by PyTorch, and 12.95 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T06:59:21.188805+00:00

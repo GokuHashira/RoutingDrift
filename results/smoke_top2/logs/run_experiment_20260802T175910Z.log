@@ -1,0 +1,134 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/run_experiment.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --precisions fp16 int8 int4 --target_module mlp.gate --output_dir /results/smoke_top2 --top_k 2 --max_length 256 --skip_heatmaps
+# started : 2026-08-02T17:59:10.015075+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/smoke_top2/logs/run_experiment_20260802T175910Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[Prompts] Using 5 built-in default prompts
+[Saved] /results/smoke_top2/prompts_used.txt
+[Saved] /results/smoke_top2/run_manifest.json
+
+========== Loading variant: fp16 ==========
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-02:17:59:14,871 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:05<00:11,  5.73s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:11<00:05,  5.83s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:16<00:00,  5.18s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:16<00:00,  5.35s/it]
+[load] quantized modules: 0 of 3153 Linear (model is unquantized)
+
+========== Collecting routes for fp16 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=2)
+[collect_routes] Prompt 1/5
+[collect_routes] Prompt 2/5
+[collect_routes] Prompt 3/5
+[collect_routes] Prompt 4/5
+[collect_routes] Prompt 5/5
+[collect_routes] captured 16 modules, 864 token rows total
+
+========== Determinism re-run for fp16 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/smoke_top2/routes_fp16.json
+
+========== Loading variant: int8 ==========
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:03<00:06,  3.45s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:06<00:03,  3.44s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:09<00:00,  3.08s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:09<00:00,  3.18s/it]
+[load] quantized modules: 3152 of 3153 Linear [Linear8bitLt=3152]; 16 layers touched, layers 0-15
+
+========== Collecting routes for int8 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=2)
+[collect_routes] Prompt 1/5
+[collect_routes] Prompt 2/5
+[collect_routes] Prompt 3/5
+[collect_routes] Prompt 4/5
+[collect_routes] Prompt 5/5
+[collect_routes] captured 16 modules, 864 token rows total
+
+========== Determinism re-run for int8 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/smoke_top2/routes_int8.json
+
+========== Loading variant: int4 ==========
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:03<00:07,  3.69s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:07<00:03,  3.69s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:10<00:00,  3.34s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:10<00:00,  3.44s/it]
+[load] quantized modules: 3152 of 3153 Linear [Linear4bit=3152]; 16 layers touched, layers 0-15
+
+========== Collecting routes for int4 ==========
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=2)
+[collect_routes] Prompt 1/5
+[collect_routes] Prompt 2/5
+[collect_routes] Prompt 3/5
+[collect_routes] Prompt 4/5
+[collect_routes] Prompt 5/5
+[collect_routes] captured 16 modules, 864 token rows total
+
+========== Determinism re-run for int4 ==========
+[determinism] PASS - routes bit-identical across repeated passes
+[Saved] /results/smoke_top2/routes_int4.json
+[guard] baseline-vs-baseline RS = 1.0000000000 (expected 1.0)
+
+Research Metrics int8 vs fp16
+  Routing similarity RS : 0.9406
+  Jaccard routing drift : 0.0594
+  Overlap@k             : 0.9554
+  Selection shift       : 0.0446
+
+Research Metrics int4 vs fp16
+  Routing similarity RS : 0.8746
+  Jaccard routing drift : 0.1254
+  Overlap@k             : 0.9057
+  Selection shift       : 0.0943
+
+[Saved] /results/smoke_top2/routing_drift_summary.csv
+[Saved] /results/smoke_top2/routing_drift_layers.csv
+[Saved] /results/smoke_top2/summary.md
+[Saved] /results/smoke_top2/run_manifest.json
+
+[Done] Results in /results/smoke_top2   Log: /results/smoke_top2/logs/run_experiment_20260802T175910Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-02T18:00:30.565424+00:00

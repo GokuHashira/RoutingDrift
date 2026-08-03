@@ -1,0 +1,43 @@
+{
+  "command": "/root/RoutingDrift/src/routingdrift/kernels/compile_benchmark.py --out /results/kernels_rerun/olmoe --shapes 512x4,1024x4",
+  "experiment": "compile_benchmark",
+  "git": {
+    "branch": "upgrade-for-research",
+    "commit": "7b8794e49e5b8a5be8f434c38b0addf636f9d9e5",
+    "dirty": false,
+    "source": "modal add_local_dir (working tree, not a clone)"
+  },
+  "gpu": {
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1,
+    "devices": [
+      {
+        "capability": "8.0",
+        "index": 0,
+        "multi_processor_count": 108,
+        "name": "NVIDIA A100-SXM4-80GB",
+        "total_memory_gb": 79.25
+      }
+    ]
+  },
+  "log_file": "/results/kernels_rerun/olmoe/logs/compile_benchmark_20260803T060627Z.log",
+  "model_name": "allenai/OLMoE-1B-7B-0924",
+  "packages": {
+    "accelerate": "1.14.0",
+    "auto_gptq": null,
+    "bitsandbytes": "0.44.1",
+    "datasets": "5.0.1",
+    "lm_eval": "unknown",
+    "numpy": "1.26.4",
+    "torch": "2.5.0+cu124",
+    "transformers": "4.46.0",
+    "triton": "3.1.0"
+  },
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "python": "3.11.12",
+  "seeding": {},
+  "tf32": "left at torch default; not disabled, unlike the drift runs",
+  "timestamp_utc": "2026-08-03T06:06:27.066905+00:00"
+}

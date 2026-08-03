@@ -1,0 +1,28 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/route_replay.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --baseline_routes /results/olmoe_top8/routes_fp16.json --replay_routes /results/olmoe_top8/routes_int4.json --quant_precision int4 --top_k 8 --target_module mlp.gate --max_length 128 --output_dir /results/olmoe_replay
+# started : 2026-08-03T04:01:52.117092+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/olmoe_replay/logs/replay_20260803T040152Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[replay] 100 prompts
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:08<00:17,  8.62s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:16<00:08,  8.41s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:24<00:00,  8.10s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:24<00:00,  8.20s/it]
+[replay] NLL fp16                     = 2.276696
+[replay] method=block  norm_topk_prob=False
+[replay] NLL fp16 + fp16 routing      = 2.276696  (control, artifact +0.000000)
+[replay] NLL fp16 + int4 routing       = 2.279028
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:13,  6.59s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:07,  7.06s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:19<00:00,  6.34s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:19<00:00,  6.49s/it]
+[replay] NLL int4                     = 2.363338
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/RoutingDrift/src/routingdrift/quantization/route_replay.py", line 615, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/RoutingDrift/src/routingdrift/quantization/route_replay.py", line 443, in main
+    "self_check": check,
+                  ^^^^^
+NameError: name 'check' is not defined
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T04:09:53.857065+00:00

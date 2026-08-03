@@ -1,0 +1,153 @@
+# command : /root/RoutingDrift/src/routingdrift/quantization/sweep.py --model_name allenai/OLMoE-1B-7B-0924 --revision 6d84c48581ece794365f2b8e9cfb043c68ade9c5 --prompts_file /results/mmlu_prompts.txt --output_dir /results/olmoe_sweep --top_k 8 --target_module mlp.gate --max_length 128 --seed 0 --resume --max_configs 6 --quality nll
+# started : 2026-08-03T19:11:52.418442+00:00
+# cwd     : /root/RoutingDrift
+#----------------------------------------------------------------------------
+[repro] logging this run to /results/olmoe_sweep/logs/sweep_20260803T191152Z.log
+[repro] seed=0 deterministic=True tf32_matmul=False
+[sweep] 100 prompts
+[sweep] 17 configurations: fp16, int8_t0, int8_t3, int8_t6, int8_t12, nf4, nf4_dq, fp4, fp4_dq, nf4_fp32c, nf4_L2, nf4_L4, nf4_L8, nf4_L12, nf4_L16, nf4_gate_fp16, int8_gate_fp16
+[Saved] /results/olmoe_sweep/run_manifest.json
+[sweep] resuming: 15 config(s) already scored (fp16, fp4, fp4_dq, int8_t0, int8_t12, int8_t3, int8_t6, nf4, nf4_L12, nf4_L16, nf4_L2, nf4_L4, nf4_L8, nf4_dq, nf4_fp32c)
+
+======================================================================
+[1/17] fp16 -- Unquantized reference
+======================================================================
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+2026-08-03:19:12:00,391 INFO     [modeling.py:1000] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:16<00:32, 16.48s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:28<00:14, 14.07s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:36<00:00, 11.21s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:36<00:00, 12.23s/it]
+[sweep] quantized modules: 0 of 3153 Linear (model is unquantized)
+[sweep] 16 router-bearing layers, 16 router modules (config reports num_hidden_layers=16)
+[RoutingLogger] Attached hook to: model.layers.0.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.1.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.2.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.3.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.4.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.5.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.6.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.7.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.8.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.9.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.10.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.11.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.12.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.13.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.14.mlp.gate
+[RoutingLogger] Attached hook to: model.layers.15.mlp.gate
+[RoutingLogger] 16 router hooks attached (num_experts=64, top_k=8)
+[sweep] fp16: NLL=2.276696
+[sweep] WARNING residual VRAM after cleanup: 12.92 GB. Memory is not being released between configs.
+[sweep] fp16: jaccard_drift=0.0000  gate_kl=0.000e+00  vram=13.0GB  residual=12.9GB  192s
+
+======================================================================
+[2/17] int8_t0 -- LLM.int8, outlier threshold 0.0
+======================================================================
+[sweep] SKIP int8_t0: already scored in a previous attempt
+
+======================================================================
+[3/17] int8_t3 -- LLM.int8, outlier threshold 3.0
+======================================================================
+[sweep] SKIP int8_t3: already scored in a previous attempt
+
+======================================================================
+[4/17] int8_t6 -- LLM.int8, outlier threshold 6.0 (bnb default)
+======================================================================
+[sweep] SKIP int8_t6: already scored in a previous attempt
+
+======================================================================
+[5/17] int8_t12 -- LLM.int8, outlier threshold 12.0
+======================================================================
+[sweep] SKIP int8_t12: already scored in a previous attempt
+
+======================================================================
+[6/17] nf4 -- 4-bit normal-float
+======================================================================
+[sweep] SKIP nf4: already scored in a previous attempt
+
+======================================================================
+[7/17] nf4_dq -- 4-bit normal-float + double quant
+======================================================================
+[sweep] SKIP nf4_dq: already scored in a previous attempt
+
+======================================================================
+[8/17] fp4 -- 4-bit float
+======================================================================
+[sweep] SKIP fp4: already scored in a previous attempt
+
+======================================================================
+[9/17] fp4_dq -- 4-bit float + double quant
+======================================================================
+[sweep] SKIP fp4_dq: already scored in a previous attempt
+
+======================================================================
+[10/17] nf4_fp32c -- 4-bit nf4, fp32 compute dtype
+======================================================================
+[sweep] SKIP nf4_fp32c: already scored in a previous attempt
+
+======================================================================
+[11/17] nf4_L2 -- nf4 on the first 2 layers only
+======================================================================
+[sweep] SKIP nf4_L2: already scored in a previous attempt
+
+======================================================================
+[12/17] nf4_L4 -- nf4 on the first 4 layers only
+======================================================================
+[sweep] SKIP nf4_L4: already scored in a previous attempt
+
+======================================================================
+[13/17] nf4_L8 -- nf4 on the first 8 layers only
+======================================================================
+[sweep] SKIP nf4_L8: already scored in a previous attempt
+
+======================================================================
+[14/17] nf4_L12 -- nf4 on the first 12 layers only
+======================================================================
+[sweep] SKIP nf4_L12: already scored in a previous attempt
+
+======================================================================
+[15/17] nf4_L16 -- nf4 on the first 16 layers only
+======================================================================
+[sweep] NOTE: nf4_L16 asks for the first 16 layers but the model only has 16 router-bearing layers, so this is identical to full quantization.
+[sweep] SKIP nf4_L16: already scored in a previous attempt
+
+======================================================================
+[16/17] nf4_gate_fp16 -- nf4 everywhere EXCEPT the routers
+======================================================================
+[sweep] exempting 16 router module(s) from quantization: model.layers.0.mlp.gate ...
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 16 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.44s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:13<00:06,  6.69s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  5.84s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:18<00:00,  6.05s/it]
+[sweep] quantized modules: 3137 of 3153 Linear [Linear4bit=3137]; 16 layers touched, layers 0-15
+[sweep] nf4_gate_fp16: NLL=2.374592
+[sweep] WARNING residual VRAM after cleanup: 16.69 GB. Memory is not being released between configs.
+[sweep] nf4_gate_fp16: jaccard_drift=0.0910  gate_kl=3.195e-03  vram=16.9GB  residual=16.7GB  251s
+
+======================================================================
+[17/17] int8_gate_fp16 -- int8 everywhere EXCEPT the routers
+======================================================================
+[sweep] exempting 16 router module(s) from quantization: model.layers.0.mlp.gate ...
+[load_model] pinned revision: 6d84c48581ece794365f2b8e9cfb043c68ade9c5
+[load_model] leaving 16 module prefixes unquantized
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|###3      | 1/3 [00:06<00:12,  6.13s/it]Loading checkpoint shards:  67%|######6   | 2/3 [00:14<00:07,  7.25s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:19<00:00,  6.44s/it]Loading checkpoint shards: 100%|##########| 3/3 [00:19<00:00,  6.55s/it]
+[sweep] quantized modules: 3137 of 3153 Linear [Linear8bitLt=3137]; 16 layers touched, layers 0-15
+[sweep] int8_gate_fp16: NLL=2.281493
+[sweep] WARNING residual VRAM after cleanup: 23.26 GB. Memory is not being released between configs.
+[sweep] int8_gate_fp16: jaccard_drift=0.0442  gate_kl=6.161e-04  vram=23.5GB  residual=23.3GB  604s
+
+[Saved] /results/olmoe_sweep/sweep_drift.csv  (17 configs)
+
+predictor                        n   pearson  spearman
+-------------------------------------------------------
+jaccard_drift                   16    0.9070    0.8910
+gate_kl                         16    0.8554    0.8999
+drift~gate_kl (collinearity)    16    0.9777    0.9941
+
+Read alongside the replay result. A strong drift-NLL correlation next to
+a small causal attribution is the point: the metric predicts well and
+causes little. If the collinearity row is near 1.0, drift and gate noise
+cannot be told apart here and neither correlation identifies a mechanism.
+[sweep] no accuracy rows; drift measured but the quality link was not evaluated
+[Saved] /results/olmoe_sweep/run_manifest.json
+
+[Done] /results/olmoe_sweep   Log: /results/olmoe_sweep/logs/sweep_20260803T191152Z.log
+#----------------------------------------------------------------------------
+# finished: 2026-08-03T19:29:30.511720+00:00

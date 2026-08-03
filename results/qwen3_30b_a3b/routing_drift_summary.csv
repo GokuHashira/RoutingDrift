@@ -1,0 +1,4 @@
+variant,precision,compiler_mode,variant_type,routing_similarity_rs,jaccard_drift,overlap_at_k,selection_shift,nll,nll_delta_vs_baseline
+fp16,fp16,eager,baseline,1.0,0.0,1.0,0.0,1.991429,0.0
+int8,int8,eager,quantization,0.930998,0.069002,0.960357,0.039643,1.996547,0.005117
+int4,int4,eager,quantization,0.83432,0.16568,0.900493,0.099507,2.049533,0.058104
