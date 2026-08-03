@@ -75,11 +75,24 @@ def profile_model_ops(out_dir, model_name="OLMoE", kernels=False):
     with profile(activities=[ProfilerActivity.CUDA], record_shapes=False) as prof:
         with torch.no_grad(): model(**inputs)
     avgs=prof.key_averages()
-    total=sum(a.cuda_time for a in avgs)
+
+    def _dev(a):
+        """Average device time per call, across torch versions that renamed the field."""
+        for attr in ("device_time", "cuda_time"):
+            v = getattr(a, attr, None)
+            if isinstance(v, (int, float)):
+                return float(v)
+        return 0.0
+
+    total=sum(_dev(a) for a in avgs)
+    if total <= 0:
+        print("  WARNING: profiler reported zero device time; the op table below is empty. "
+              "Check that the profiler attribute names match this torch version.")
     rows=[]
-    for a in sorted(avgs, key=lambda x: x.cuda_time, reverse=True)[:15]:
-        rows.append({"config":label,"op":a.key,"cuda_time_us":round(a.cuda_time,1),"pct_total":round(a.cuda_time/total*100,2) if total>0 else 0,"count":a.count})
-        print(f"  {a.key:50s} {a.cuda_time:8.1f} us  {a.cuda_time/total*100:5.1f}%")
+    for a in sorted(avgs, key=_dev, reverse=True)[:15]:
+        pct = round(_dev(a)/total*100, 2) if total>0 else 0
+        rows.append({"config":label,"op":a.key,"cuda_time_us":round(_dev(a),1),"pct_total":pct,"count":a.count})
+        print(f"  {a.key:50s} {_dev(a):8.1f} us  {pct:5.1f}%")
     del model; torch.cuda.empty_cache()
     _save(rows, os.path.join(out_dir, f"profile_model_ops_{label}.csv"))
     return rows, total
@@ -138,11 +151,33 @@ def measure_op_fractions(load_fn, precision="fp16", label="baseline"):
     for module, original in handles:
         module.forward = original
 
+    def _dev_total(evt):
+        """Inclusive device time. torch 2.5 renamed cuda_time_total -> device_time_total."""
+        for attr in ("device_time_total", "cuda_time_total"):
+            v = getattr(evt, attr, None)
+            if isinstance(v, (int, float)):
+                return float(v)
+        return 0.0
+
+    def _dev_self(evt):
+        """Device time excluding children, so summing over all events counts each kernel once."""
+        for attr in ("self_device_time_total", "self_cuda_time_total"):
+            v = getattr(evt, attr, None)
+            if isinstance(v, (int, float)):
+                return float(v)
+        return 0.0
+
+    events = list(prof.key_averages())
     totals = {}
-    for evt in prof.key_averages():
+    for evt in events:
         if evt.key.startswith("MEASURED_"):
-            totals[evt.key] = totals.get(evt.key, 0.0) + evt.cuda_time_total
-    grand = sum(e.cuda_time_total for e in prof.key_averages() if e.cuda_time_total > 0 and not e.key.startswith("MEASURED_"))
+            # Inclusive: everything the module launched belongs to it.
+            totals[evt.key] = totals.get(evt.key, 0.0) + _dev_total(evt)
+
+    # Self time for the denominator. Inclusive times nest -- aten::linear contains
+    # aten::mm contains the kernel -- so summing them would count the same GPU work
+    # several times and deflate every fraction.
+    grand = sum(_dev_self(e) for e in events if not e.key.startswith("MEASURED_"))
     del model
     torch.cuda.empty_cache()
 
