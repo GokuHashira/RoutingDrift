@@ -126,10 +126,14 @@ def load_model(
     if tokenizer.pad_token is None and tokenizer.eos_token is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # `torch_dtype`, not `dtype`. transformers 4.46 (the pinned version) forwards an
+    # `torch_dtype`, not `dtype`. transformers 4.46 (the OLMoE/DeepSeek pin) forwards an
     # unknown `dtype` kwarg into the model __init__ and dies with
-    # "__init__() got an unexpected keyword argument 'dtype'". `dtype` only became an
-    # accepted alias in much later releases.
+    # "__init__() got an unexpected keyword argument 'dtype'".
+    #
+    # transformers 5.x renamed it and prints "`torch_dtype` is deprecated! Use `dtype`
+    # instead!" -- a warning, not an error, confirmed against 5.14.1 on the Qwen run. Both
+    # images are pinned below 5 anyway (see modal_app._image), so this stays correct for
+    # every version this project actually loads. Revisit if that pin moves.
     if precision == "gptq":
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -242,6 +246,53 @@ def summarize_quantized_modules(model) -> str:
     return (
         f"quantized modules: {quantized} of {total_linear} Linear [{kind_desc}]; "
         f"{len(layers)} layers touched, {span}"
+    )
+
+
+def assert_experts_quantized(model, precision: str) -> None:
+    """
+    Refuse to proceed when a quantized load has not reached the experts.
+
+    bitsandbytes replaces nn.Linear modules. Anything an architecture does NOT express as
+    nn.Linear stays in full precision, silently, and the run still completes and still
+    emits drift numbers.
+
+    That is not hypothetical. transformers 5 fuses MoE experts into packed 3D parameters,
+    so loading Qwen3-30B-A3B there reports 193 Linear for a 48-layer, 128-expert model:
+    attention and lm_head only, with all 18,432 expert projections invisible to the
+    quantizer. A run in that state would compare "INT4 Qwen" against "INT4 OLMoE" when the
+    first quantized attention alone and the second quantized everything. Nothing would
+    have raised, and the number would have gone in the paper.
+
+    The check is deliberately crude -- a quantized precision that touched no Linear at all,
+    or touched fewer than the attention stack alone implies, is wrong regardless of
+    architecture. It cannot catch every partial-coverage case, so the audit line stays the
+    primary record; this only makes the total failures loud.
+
+    DeepSeek's unquantized MoEGate is NOT caught here and should not be: that is one gate
+    per layer staying fp16 while the experts quantize, which is a real property of the
+    architecture, documented in compare_models.py, not a broken load.
+    """
+    if precision in {"fp16", "fp32", "bf16", "gptq"}:
+        return
+
+    quantized = sum(
+        1 for _, module in model.named_modules()
+        if type(module).__name__ in ("Linear4bit", "Linear8bitLt", "Params4bit")
+    )
+    if quantized:
+        return
+
+    total_linear = sum(
+        1 for _, module in model.named_modules() if "Linear" in type(module).__name__
+    )
+    raise RuntimeError(
+        f"precision={precision!r} was requested but NOT ONE module was quantized "
+        f"({total_linear} Linear modules present). The load silently produced a "
+        f"full-precision model, and every drift number from it would be zero by "
+        f"construction. Most likely the transformers version expresses experts as fused "
+        f"parameters rather than nn.Linear, which bitsandbytes cannot see. Check the "
+        f"[load] audit line and the transformers pin in modal_app._image."
     )
 
 

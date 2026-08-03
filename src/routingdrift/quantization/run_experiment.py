@@ -36,7 +36,11 @@ from routingdrift.quantization.analysis_utils import (
 from routingdrift.quantization.drift import build_layerwise_rows, summarize_research_metrics
 from routingdrift.quantization.harness_eval import SUPPORTED_EVAL_TASKS, extract_task_accuracies, run_lm_eval
 from routingdrift.quantization.io_utils import save_prompts_txt, save_routes_json, save_summary_csv, save_summary_md
-from routingdrift.quantization.model_loader import load_model, summarize_quantized_modules
+from routingdrift.quantization.model_loader import (
+    assert_experts_quantized,
+    load_model,
+    summarize_quantized_modules,
+)
 from routingdrift.quantization.repro import (
     DEFAULT_SEED,
     collect_run_manifest,
@@ -110,6 +114,7 @@ def run_for_precision(
     revision: Optional[str] = None,
     repeat_for_determinism: bool = False,
     resume: bool = False,
+    measure_nll: bool = False,
 ):
     """
     Load one variant, collect its routes, and save them.
@@ -131,6 +136,8 @@ def run_for_precision(
     #
     # Only safe when re-running an identical command, which is exactly the preemption
     # case. Off by default so an ordinary re-run never silently mixes old and new routes.
+    resumed_routes = None
+    resumed_from = None
     if resume:
         try:
             from routingdrift.quantization.io_utils import load_routes_raw, resolve_routes_path
@@ -157,15 +164,28 @@ def run_for_precision(
                 rows = sum(t.reshape(-1, t.shape[-1]).shape[0] for calls in routes.values() for t in calls)
                 print(f"\n========== REUSING {variant_name} from {existing.name} "
                       f"({len(routes)} modules, {rows} rows) ==========")
-                return routes, {"resumed_from": str(existing)}
+                resumed_routes = routes
+                resumed_from = str(existing)
         except FileNotFoundError:
             pass
+
+    # Resume can only short-circuit the load when nothing downstream needs the model.
+    # NLL does. Returning here with measure_nll set would silently produce a run with no
+    # quality number and no error, which is how a metric gets quietly dropped from a
+    # results table. So with --measure_nll the model is still loaded, and the saved routes
+    # are reused instead of recollected -- which is also the cheap way to backfill NLL for
+    # a model whose drift has already been measured.
+    if resumed_routes is not None and not measure_nll:
+        return resumed_routes, {"resumed_from": resumed_from}
 
     print(f"\n========== Loading variant: {variant_name} ==========")
     model, tokenizer = load_model(model_name=model_name, precision=precision, revision=revision)
     # Say what actually got quantized. Cheap, and it makes every run self-documenting
     # about whether the requested precision reached the layers it was supposed to.
     print(f"[load] {summarize_quantized_modules(model)}")
+    # Loud failure beats a plausible zero. See assert_experts_quantized for the Qwen /
+    # transformers 5 case this exists to catch.
+    assert_experts_quantized(model, precision)
     model = _apply_compiler_mode(model, compiler_mode)
 
     if inspect_modules:
@@ -173,18 +193,26 @@ def run_for_precision(
 
     info: Dict[str, object] = {"resolved_revision": resolve_checkpoint_revision(model)}
 
-    print(f"\n========== Collecting routes for {variant_name} ==========")
-    routes = collect_routes(
-        model=model,
-        tokenizer=tokenizer,
-        prompts=prompts,
-        top_k=top_k,
-        target_module_names=target_module_names,
-        max_length=max_length,
-        verbose=True,
-    )
+    if resumed_routes is not None:
+        # Reusing the saved routes rather than recollecting them. The determinism re-run
+        # is skipped too: it already ran when these routes were produced, and re-deciding
+        # it here would compare a fresh pass against a stored one, which is a different
+        # question from the one it answers.
+        info["resumed_from"] = resumed_from
+        routes = resumed_routes
+    else:
+        print(f"\n========== Collecting routes for {variant_name} ==========")
+        routes = collect_routes(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=prompts,
+            top_k=top_k,
+            target_module_names=target_module_names,
+            max_length=max_length,
+            verbose=True,
+        )
 
-    if repeat_for_determinism:
+    if repeat_for_determinism and resumed_routes is None:
         print(f"\n========== Determinism re-run for {variant_name} ==========")
         repeat_routes = collect_routes(
             model=model,
@@ -202,8 +230,37 @@ def run_for_precision(
         )
         print(f"[determinism] {status}")
 
-    written = save_routes_json(routes, routes_path)
-    print(f"[Saved] {written}")
+    # Quality, while the model is still resident. Without this a run produces drift and
+    # nothing to relate it to: DeepSeek-V2-Lite and Qwen3-30B-A3B were measured for drift
+    # alone, so the project's central claim -- that routing drift tracks quality loss --
+    # was testable on OLMoE only, where the sweep supplies NLL. One forward pass per
+    # prompt on an already-loaded model, so seconds, against the alternative of loading a
+    # 30B checkpoint a second time.
+    #
+    # Same metric and same prompts as sweep.py and route_replay.py, so the cross-model
+    # numbers, the 15-config correlation and the causal attribution are all commensurable.
+    if measure_nll:
+        from routingdrift.quantization.route_replay import mean_nll
+
+        print(f"\n========== NLL for {variant_name} ==========")
+        try:
+            value = mean_nll(model, tokenizer, prompts, max_length)
+            info["nll"] = value
+            print(f"[nll] {variant_name}: {value:.6f}")
+        except Exception as exc:  # noqa: BLE001
+            # Drift is the primary result and is already saved above. A quality metric
+            # that fails must not discard it.
+            info["nll_error"] = f"{type(exc).__name__}: {exc}"
+            print(f"[nll] FAILED for {variant_name}: {exc}")
+            print("[nll] drift results are unaffected and already saved.")
+
+    if resumed_routes is None:
+        written = save_routes_json(routes, routes_path)
+        print(f"[Saved] {written}")
+    else:
+        # Rewriting a dump we just read back would be pure risk: identical content, but a
+        # crash mid-write leaves the original truncated. Leave it alone.
+        print(f"[Saved] unchanged, reused {resumed_from}")
 
     del model
     del tokenizer
@@ -410,6 +467,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip layer drift heatmap generation.",
     )
     parser.add_argument(
+        "--measure_nll",
+        "--measure-nll",
+        dest="measure_nll",
+        action="store_true",
+        help=(
+            "Also measure token-averaged NLL per variant, on the same prompts, while the "
+            "model is loaded. Without it a run yields drift with nothing to relate it to. "
+            "Costs one forward pass per prompt (seconds); use it for any model whose "
+            "quality is not covered by the sweep."
+        ),
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=DEFAULT_SEED,
@@ -535,6 +604,7 @@ def _collect_variants(args, prompts, output_dir):
             # pass per precision, so seconds.
             repeat_for_determinism=not args.skip_determinism_check,
             resume=args.resume,
+            measure_nll=args.measure_nll,
         )
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = precision
@@ -554,6 +624,7 @@ def _collect_variants(args, prompts, output_dir):
             inspect_modules=False,
             revision=args.revision,
             resume=args.resume,
+            measure_nll=args.measure_nll,
         )
         all_routes[variant_name] = routes
         variant_to_precision[variant_name] = args.compiler_precision
@@ -562,7 +633,7 @@ def _collect_variants(args, prompts, output_dir):
     return all_routes, variant_to_precision, variant_info
 
 
-def _compute_drift(args, all_routes, variant_to_precision):
+def _compute_drift(args, all_routes, variant_to_precision, variant_info=None):
     """Score every variant against the baseline, guarding that the metric can match a
     route set against itself before any drift number is emitted."""
     baseline_variant = _build_variant_name(args.precisions[0], "eager")
@@ -575,6 +646,12 @@ def _compute_drift(args, all_routes, variant_to_precision):
     # Measure the baseline row instead of hardcoding 1.0/0.0. Comparing the baseline to
     # itself must yield RS exactly 1.0; anything else means the metric is broken (bad row
     # alignment, shape mismatch, empty routes) and every drift number below is suspect.
+    variant_info = variant_info or {}
+    # NLL belongs in the CSV, not only run_manifest.json. compare_models and every plot
+    # read the CSV, and a quality number kept in the manifest is a quality number nobody
+    # joins against drift. Blank when --measure_nll was not passed.
+    baseline_nll = (variant_info.get(baseline_variant) or {}).get("nll", "")
+
     baseline_metrics = summarize_research_metrics(
         baseline_routes=baseline_routes,
         quantized_routes=baseline_routes,
@@ -623,6 +700,15 @@ def _compute_drift(args, all_routes, variant_to_precision):
             "overlap_at_k": round(metrics["overlap_at_k"], 6),
             "selection_shift": round(metrics["selection_shift"], 6),
         }
+
+        nll = (variant_info.get(variant) or {}).get("nll", "")
+        row["nll"] = round(nll, 6) if isinstance(nll, float) else ""
+        # The delta, not just the level. Raw NLL is dominated by which prompts were drawn;
+        # the increase over the fp16 baseline on the SAME prompts is what tracks drift.
+        row["nll_delta_vs_baseline"] = (
+            round(nll - baseline_nll, 6)
+            if isinstance(nll, float) and isinstance(baseline_nll, float) else ""
+        )
         summary_rows.append(row)
 
         print(f"\nResearch Metrics {variant} vs {baseline_variant}")
@@ -750,7 +836,7 @@ def main():
 
     all_routes, variant_to_precision, variant_info = _collect_variants(args, prompts, output_dir)
 
-    computed = _compute_drift(args, all_routes, variant_to_precision)
+    computed = _compute_drift(args, all_routes, variant_to_precision, variant_info)
     if computed is None:
         return
     baseline_variant, baseline_metrics, summary_rows, layer_rows = computed

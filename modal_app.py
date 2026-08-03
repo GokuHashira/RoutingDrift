@@ -26,7 +26,7 @@ Every stage is separately invokable. Run them in order and stop after stage 1.
     modal run modal_app.py::sweep                 # ~$6.90  the correlation
     modal run modal_app.py::replay                # ~$1.00  the causal result
     modal run modal_app.py::deepseek_drift        # ~$0.85
-    modal run modal_app.py::qwen_drift            # ~$1.90  needs newer transformers
+    modal run modal_app.py::qwen_drift            # ~$1.90  needs transformers >=4.51,<5
     modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
     modal run modal_app.py::kernel_benchmark      # ~$0.30  E2E on the same machine
     modal run modal_app.py::compile_benchmark     # ~$1     does fusing the dispatch help?
@@ -38,8 +38,11 @@ ORDER AND PARALLELISM
     task1                 MUST run before sweep/replay/deepseek/qwen -- it writes
                           mmlu_prompts.txt, which they all read
     sweep, replay         after task1; may run concurrently with each other
-    deepseek, qwen        after task1; keep SERIAL with each other, since both download
-                          into the shared HF cache volume and concurrent commits can race
+    deepseek, qwen        after task1; safe to run concurrently. Each modal run gets its
+                          own container and GPU, they write different result directories,
+                          and they download into different HF cache subdirectories, which
+                          Modal merges per file. Serialise only to keep a failure cheap to
+                          diagnose, not for correctness
     diagnostics           last; reloads the volumes before reading
 
 Parallelism is cost-neutral on Modal -- billing is per function-second, so two GPUs for
@@ -62,9 +65,10 @@ RESULTS = "/results"
 GPU = "A100-80GB"
 
 # Two images. OLMoE and DeepSeek run on the transformers 4.46 pin that the committed
-# results depend on; Qwen3.6-35B-A3B is an April 2026 architecture that 4.46 cannot load,
-# so it gets its own. run_manifest.json records the version actually used, and the paper
-# has to note the split.
+# results depend on; Qwen3-30B-A3B needs >=4.51, which 4.46 predates, so it gets its own.
+# run_manifest.json records the version actually used, and the paper has to note the split.
+# Both are pinned below transformers 5 -- see latest_image for why that bound is not
+# optional.
 _COMMON = [
     "accelerate", "bitsandbytes==0.44.1", "safetensors", "sentencepiece", "protobuf",
     "numpy<2", "pandas", "matplotlib", "seaborn", "tabulate", "scipy",
@@ -104,7 +108,25 @@ def _image(transformers_pin: str, extra: tuple = ()) -> modal.Image:
 
 
 pinned_image = _image("transformers==4.46.0")
-latest_image = _image("transformers>=4.57")
+
+# Upper bound is load-bearing, not caution. This was ">=4.57", which on 2026-08-03
+# resolved to transformers 5.14.1 and broke the Qwen run twice over:
+#
+#   1. Visible failure: transformers 5 requires bitsandbytes>=0.46.1, and this project
+#      pins 0.44.1 because OLMoE's committed results depend on it. INT8 raised ImportError.
+#   2. Silent failure, which is the real reason for the pin: transformers 5 fuses MoE
+#      experts into packed 3D parameters (integrations/moe.py) instead of per-expert
+#      nn.Linear. The load audit reported "0 of 193 Linear" for a 48-layer, 128-expert
+#      model -- 193 is attention plus lm_head, and all 18,432 expert projections are gone
+#      as Linear modules. bitsandbytes only replaces nn.Linear, so simply upgrading it
+#      would have quantized ATTENTION ONLY and left every expert in fp16, while OLMoE and
+#      DeepSeek had experts quantized. The Qwen drift numbers would have been measuring a
+#      different intervention under the same label, and nothing would have errored.
+#
+# 4.x keeps the per-expert nn.Linear layout that OLMoE and DeepSeek were measured under,
+# which is what makes the three models comparable. Qwen3-MoE has been supported since
+# 4.51. Do not raise this bound without re-checking the load audit's Linear count.
+latest_image = _image("transformers>=4.51,<5")
 
 def _git_env() -> dict:
     """
@@ -426,6 +448,9 @@ def deepseek_drift():
         "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
         "--output_dir", f"{RESULTS}/deepseek_v2_lite",
         "--top_k", "6", "--max_length", "128", "--seed", "0", "--skip_heatmaps",
+        # Drift with nothing to relate it to is half a result. The sweep supplies NLL for
+        # OLMoE only, so without this the cross-model table has quality for one of three.
+        "--measure_nll",
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/deepseek_v2_lite")
@@ -476,6 +501,9 @@ def qwen_drift():
         "--prompts_file", f"{RESULTS}/mmlu_prompts.txt",
         "--output_dir", f"{RESULTS}/qwen3_30b_a3b",
         "--top_k", "8", "--max_length", "128", "--seed", "0", "--skip_heatmaps",
+        # Drift with nothing to relate it to is half a result. The sweep supplies NLL for
+        # OLMoE only, so without this the cross-model table has quality for one of three.
+        "--measure_nll",
     )
     _run("routingdrift.quantization.verify_reproducibility",
          "--results_dir", f"{RESULTS}/qwen3_30b_a3b")
