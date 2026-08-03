@@ -70,15 +70,24 @@ STAGE_DIRS ?= smoke_top2 probe olmoe_top8 olmoe_sweep olmoe_replay \
 
 pull-results:
 	rm -rf results_modal.partial && mkdir -p results_modal.partial
+	@# Destination is the PARENT directory, not the full target path. modal places the
+	@# entry inside it, the same way it handled mmlu_prompts.txt. Passing the full path
+	@# creates an empty directory and fails.
 	@for d in $(STAGE_DIRS); do \
-		if modal volume get routingdrift-results $$d results_modal.partial/$$d >/dev/null 2>&1; then \
+		out=$$(modal volume get routingdrift-results $$d results_modal.partial/ 2>&1); \
+		if [ -d "results_modal.partial/$$d" ] && [ -n "$$(ls -A results_modal.partial/$$d 2>/dev/null)" ]; then \
 			echo "  pulled  $$d"; \
 		else \
-			echo "  absent  $$d"; \
+			rm -rf "results_modal.partial/$$d"; \
+			case "$$out" in \
+				*"not found"*|*"No such"*) echo "  absent  $$d" ;; \
+				*) echo "  FAILED  $$d: $$(echo "$$out" | tail -1)" ;; \
+			esac; \
 		fi; \
 	done
-	@modal volume get routingdrift-results mmlu_prompts.txt results_modal.partial/ >/dev/null 2>&1 \
-		&& echo "  pulled  mmlu_prompts.txt" || true
+	@out=$$(modal volume get routingdrift-results mmlu_prompts.txt results_modal.partial/ 2>&1); \
+		[ -f results_modal.partial/mmlu_prompts.txt ] && echo "  pulled  mmlu_prompts.txt" \
+		|| echo "  absent  mmlu_prompts.txt"
 	@if [ -z "$$(ls -A results_modal.partial)" ]; then \
 		echo "NOTHING PULLED. Check: modal volume ls routingdrift-results"; \
 		rm -rf results_modal.partial; exit 1; \
