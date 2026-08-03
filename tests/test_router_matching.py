@@ -57,8 +57,18 @@ def _install_shims() -> None:
         import transformers  # noqa: F401
     except ImportError:
         tf_shim = types.ModuleType("transformers")
+
+        # Accepts and records any arguments. NOT `object`: object() takes no arguments, so
+        # a shim of `object` turns every later construction into a TypeError in whichever
+        # module happens to build one next. This shim is process-wide, so it has to be
+        # usable by tests that never asked for it.
+        class _Placeholder:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
         for name in ("AutoModelForCausalLM", "AutoTokenizer", "BitsAndBytesConfig"):
-            setattr(tf_shim, name, object)
+            setattr(tf_shim, name, _Placeholder)
         sys.modules["transformers"] = tf_shim
 
 

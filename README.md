@@ -527,10 +527,19 @@ self-consistency guard, that a route set compared against itself scores exactly 
 
 ### Tier 1: pipeline sanity, and the figures *(no GPU)*
 
+**`make init-dev` is Linux-only, and not needed here.** `bitsandbytes` and `triton` publish
+no macOS distributions at all, and `bitsandbytes` is a base dependency, so neither
+`pip install -e .` nor `make init-dev` can succeed on a laptop. Editable installs also need
+pip 21.3 or newer for PEP 660. Nothing below requires an install: `make test` and
+`make verify` run with `PYTHONPATH=src`, and the modules that need torch or the modal client
+skip rather than fail.
+
 ```bash
 make cpu-smoke            # builds a 0.17M-param MoE and runs the real pipeline on it
 make check-imports        # every intra-project import resolves, nothing executed
-make init-dev && make test
+
+make init-local           # pytest, ruff, matplotlib, numpy, pandas. Any OS.
+make test                 # 33 pass, 3 skip without torch/modal installed
 
 # Figures. Needs matplotlib and numpy; use a venv that is NOT your Modal client venv.
 python3 -m venv .venv && source .venv/bin/activate

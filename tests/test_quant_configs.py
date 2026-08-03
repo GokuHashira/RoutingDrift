@@ -30,25 +30,56 @@ import context  # noqa: F401  -- puts src/ on sys.path; see tests/context.py
 
 
 def _install_stubs() -> None:
-    """Minimal torch and transformers, enough for quant_configs to import and build."""
-    if "torch" not in sys.modules:
-        torch = types.ModuleType("torch")
-        torch.float16 = "torch.float16"
-        torch.float32 = "torch.float32"
-        sys.modules["torch"] = torch
-    if "transformers" not in sys.modules:
-        tf = types.ModuleType("transformers")
+    """
+    Minimal torch and transformers, enough for quant_configs to import and build.
 
+    Checks for the ATTRIBUTES it needs, not merely whether the module name is present in
+    sys.modules. An earlier version tested `"torch" not in sys.modules` and so declined to
+    stub when something else in the session had already left a bare `torch` entry behind,
+    after which `quant_configs` died on `torch.float16`. These tests passed in isolation and
+    failed in a full run, which is the worst way for a test to be wrong.
+
+    Real modules are never overwritten: on a machine with torch installed, the attribute is
+    already there and nothing is touched.
+    """
+    torch = sys.modules.get("torch") or types.ModuleType("torch")
+    for attr, value in (("float16", "torch.float16"), ("float32", "torch.float32")):
+        if not hasattr(torch, attr):
+            setattr(torch, attr, value)
+    sys.modules["torch"] = torch
+
+    tf = sys.modules.get("transformers") or types.ModuleType("transformers")
+
+    def _usable(obj) -> bool:
+        """Present is not the same as usable: another test's shim set this to `object`."""
+        try:
+            obj(load_in_8bit=True)
+            return True
+        except Exception:
+            return False
+
+    if not _usable(getattr(tf, "BitsAndBytesConfig", None)):
         class BitsAndBytesConfig:  # noqa: D401 - a recorder, not the real thing
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
 
         tf.BitsAndBytesConfig = BitsAndBytesConfig
-        sys.modules["transformers"] = tf
+    sys.modules["transformers"] = tf
 
 
 def _sweep():
+    """
+    Import quant_configs with the stubs guaranteed to be in place first.
+
+    Drops any cached copy before importing. Python caches a module the first time it is
+    imported, so if an earlier test in the session triggered an import that half-failed on a
+    missing torch attribute, every later `from ... import quant_configs` hands back that same
+    broken object no matter how good the stubs now are.
+    """
     _install_stubs()
+    for name in list(sys.modules):
+        if name.startswith("routingdrift.quantization.quant_configs"):
+            del sys.modules[name]
     from routingdrift.quantization import quant_configs
 
     return quant_configs

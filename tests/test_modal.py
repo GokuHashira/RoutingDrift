@@ -1,4 +1,7 @@
-import modal
+import pytest
+
+# The modal client is installed in its own venv, not necessarily the test venv.
+modal = pytest.importorskip("modal", reason="modal client not in this environment")
 
 app = modal.App("example-get-started")
 

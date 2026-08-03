@@ -1,4 +1,4 @@
-.PHONY: help init init-dev lint format test verify check-imports cpu-smoke pull-results clean
+.PHONY: help init init-dev init-local lint format test verify check-imports cpu-smoke pull-results clean
 
 PYTHON ?= python3
 SCRATCH ?= .cpu-smoke
@@ -7,7 +7,8 @@ help:
 	@echo "RoutingDrift -- common tasks"
 	@echo ""
 	@echo "  make init         Install the package (runtime deps only)"
-	@echo "  make init-dev     Install with eval/viz/kernels/dev extras"
+	@echo "  make init-dev     Install with all extras (LINUX ONLY: bnb/triton have no macOS wheels)"
+	@echo "  make init-local   Test + figure deps only, any OS, no editable install"
 	@echo "  make lint         Ruff check (no files modified)"
 	@echo "  make format       Ruff auto-fix + format"
 	@echo "  make test         Run the test suite"
@@ -20,8 +21,21 @@ help:
 init:
 	$(PYTHON) -m pip install -e .
 
+# LINUX ONLY. bitsandbytes and triton publish no macOS distributions at all, and
+# bitsandbytes is a base dependency, so neither `pip install -e .` nor this target can
+# succeed on a laptop. Editable installs also need pip >= 21.3 for PEP 660.
+#
+# On macOS use init-local instead: `make test` and `make verify` run from src/ without
+# installing, and the analysis path is stdlib-only by design.
 init-dev:
+	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -e ".[all]"
+
+# Enough to run the tests and draw the figures on any OS. No torch, no bitsandbytes, no
+# triton, and no editable install: tests and analysis run with PYTHONPATH=src.
+init-local:
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install pytest ruff matplotlib numpy pandas
 
 lint:
 	ruff check src tests tools
@@ -30,8 +44,11 @@ format:
 	ruff check --fix src tests tools
 	ruff format src tests tools
 
+# PYTHONPATH=src, not an installed package: bitsandbytes and triton have no macOS
+# distributions, so `pip install -e .` cannot succeed on a laptop and the tests must not
+# depend on it. Modules needing torch or modal skip rather than fail collection.
 test:
-	pytest -q
+	PYTHONPATH=src $(PYTHON) -m pytest -q
 
 check-imports:
 	$(PYTHON) tools/check_imports.py

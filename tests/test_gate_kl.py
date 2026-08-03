@@ -17,7 +17,13 @@ from __future__ import annotations
 import math
 
 import context  # noqa: F401  -- puts src/ on sys.path; see tests/context.py
-import torch
+import pytest
+
+# torch and bitsandbytes have no macOS distributions, so a laptop cannot install
+# this project's full dependency set. importorskip makes the missing package skip
+# this module instead of failing collection, which previously interrupted the whole
+# suite and stopped the stdlib-only tests from running at all.
+torch = pytest.importorskip("torch", reason="no macOS wheel; GPU stack is Linux-only")
 
 from routingdrift.quantization.routing_logger import mean_gate_kl
 
