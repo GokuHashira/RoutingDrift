@@ -300,8 +300,8 @@ what makes `make verify` runnable anywhere.
 | Person | Role |
 |---|---|
 | **Gokul Sakthivel** | Triton kernels and their re-measurement; the 17-config quantization sweep; causal route replay; cross-architecture measurement and the top-k correction; bootstrap CIs; the compile benchmark; real-checkpoint graph-break analysis; reproducibility layer and Modal pipeline; figures and docs |
-| Amogh Rajendra | Compiler sub-study: initial graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
-| Giri Radhakrishnan | Quantization sub-study: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
+| **Amogh Rajendra** | Compiler sub-study: initial graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
+| **Giri Radhakrishnan** | Quantization sub-study: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
 
 These results re-measure all three original sub-studies; several headline numbers changed. The
 corrections and their causes are in the paper.
