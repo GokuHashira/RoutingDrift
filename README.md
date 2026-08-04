@@ -299,43 +299,9 @@ what makes `make verify` runnable anywhere.
 
 | Person | Role |
 |---|---|
-| **Gokul Sakthivel** | Triton kernels, and all measurement, analysis and infrastructure behind the results above |
+| **Gokul Sakthivel** | Triton kernels and their re-measurement; the 17-config quantization sweep; causal route replay; cross-architecture measurement and the top-k correction; bootstrap CIs; the compile benchmark; real-checkpoint graph-break analysis; reproducibility layer and Modal pipeline; figures and docs |
 | Amogh Rajendra | Compiler sub-study: initial graph-break analysis, `torch.compile` mode sweep, TorchInductor IR inspection |
 | Giri Radhakrishnan | Quantization sub-study: routing drift metrics, per-layer analysis, lm-eval accuracy baseline |
-
-**Gokul Sakthivel** in detail:
-
-*Kernels (sub-study 1)*
-- Fused RMSNorm and row-wise router-softmax Triton kernels, with numerical validation against
-  the reference implementations and isolated microbenchmarks
-- Corrected op-fraction attribution: `record_function` ranges over 81 wrapped modules, replacing
-  CUDA kernel-name matching, which had missed the variance reduction and OLMoE's QK-norm modules.
-  Established the 7.70% share and the 1.07x Amdahl ceiling
-- The five-configuration compile benchmark (`kernels/compile_benchmark.py`), which measured that
-  removing every graph break is 3x slower
-
-*Quantization and routing (sub-study 2)*
-- The 17-configuration sweep and its specs (`quantization/sweep.py`, `quantization/quant_configs.py`),
-  including the layer-coverage dial and the router-exemption controls
-- The causal route-replay intervention at block level (`quantization/route_replay.py`) and the
-  control that establishes it neutral to six decimals
-- Cross-architecture measurement on DeepSeek-V2-Lite and Qwen3-30B-A3B, including the DeepSeek
-  gate adapter, and the top-k correction that makes the numbers comparable
-  (`quantization/compare_models.py`)
-- Prompt-resampled bootstrap confidence intervals (`quantization/bootstrap.py`)
-- Re-measurement of OLMoE drift at native top-8, replacing the top-2 measurement
-
-*Compiler (sub-study 3)*
-- Graph-break analysis on the real 16-layer checkpoint (`compiler/real_model_breaks.py`),
-  replacing the 2-layer stubs
-
-*Infrastructure*
-- Reproducibility layer: provenance manifests, run logging, per-precision determinism checks,
-  the output write guard, and recomputation of every published metric from raw route dumps
-- The Modal execution pipeline (`modal_app.py`): every GPU stage with pinned images, resume
-  after preemption, and cost-capped timeouts
-- Repository restructure into an installable package, the test suite, the figures
-  (`reporting/paper_figures.py`), and this documentation
 
 These results re-measure all three original sub-studies; several headline numbers changed. The
 corrections and their causes are in the paper.
