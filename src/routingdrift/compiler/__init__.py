@@ -1,1 +1,1 @@
-"""RoutingDrift compiler sub-study."""
+"""MoE Ceilings compiler sub-study."""

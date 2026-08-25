@@ -4,7 +4,7 @@ PYTHON ?= python3
 SCRATCH ?= .cpu-smoke
 
 help:
-	@echo "RoutingDrift -- common tasks"
+	@echo "MoE Ceilings -- common tasks"
 	@echo ""
 	@echo "  make init         Install the package (runtime deps only)"
 	@echo "  make init-dev     Install with all extras (LINUX ONLY: bnb/triton have no macOS wheels)"

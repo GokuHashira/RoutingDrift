@@ -180,7 +180,7 @@ Figures: `results/paper_figures/`. What is current vs superseded: `results/READM
 ### No GPU, no dependencies
 
 ```bash
-git clone https://github.com/GokuHashira/RoutingDrift.git && cd RoutingDrift
+git clone https://github.com/GokuHashira/moe-ceilings.git && cd moe-ceilings
 
 make verify              # recompute every metric above from raw route dumps
 make check-imports       # every intra-project import resolves

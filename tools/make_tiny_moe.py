@@ -3,12 +3,6 @@ make_tiny_moe.py
 
 Build a tiny, randomly-initialized OLMoE checkpoint (a few MB) for CPU testing.
 
-Same architecture family as the real target -- `model.layers.N.mlp.gate` router modules,
-top-k expert routing -- just small enough to run the whole pipeline on a laptop in
-seconds. Nothing is downloaded; the tokenizer is built locally.
-
-This exists so the first execution of the experiment pipeline is not on a rented GPU.
-
 Usage:
     python tools/make_tiny_moe.py --out /tmp/tiny-olmoe
 """

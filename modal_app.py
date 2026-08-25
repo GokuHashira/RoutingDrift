@@ -1,67 +1,13 @@
 """
 modal_app.py
 
-RoutingDrift experiment stages on Modal.
+MoE Ceilings experiment stages on Modal.
 
-Why Modal rather than a rented instance: billing is per-second of actual function
-execution, and the workflow here is deliberately stop-and-inspect -- run a stage, read the
-diagnostics, decide whether the next one is worth running. On a wall-clock-billed box that
-thinking time either costs money or costs the discipline to remember to shut it down. It
-also means a persistent volume holds the checkpoints, so the 117 GB across three models is
-downloaded once rather than juggled against a fixed disk.
-
-Use --detach for anything longer than a couple of minutes:
-
-    modal run --detach modal_app.py::task1
-
-Without it the app dies when your local client disconnects -- closing a laptop lid is
-enough, and it killed a paid task1 run mid-eval. Detached runs keep going; follow them in
-the dashboard and collect results afterwards with the diagnostics stage.
-
-Every stage is separately invokable. Run them in order and stop after stage 1.
-
-    modal run modal_app.py::smoke                 # ~$0.65  <-- START HERE, then send the digest
-    modal run modal_app.py::probe                 # ~$0.60  settles the skip_modules question
-    modal run modal_app.py::task1                 # ~$1.90
-    modal run modal_app.py::sweep                 # ~$6.90  the correlation
-    modal run modal_app.py::replay                # ~$1.00  the causal result
-    modal run modal_app.py::deepseek_drift        # ~$0.85
-    modal run modal_app.py::qwen_drift            # ~$1.90  needs transformers >=4.51,<5
-    modal run modal_app.py::kernel_profile        # ~$0.50  honest Amdahl fractions
-    modal run modal_app.py::kernel_benchmark      # ~$0.30  E2E on the same machine
-    modal run modal_app.py::compile_benchmark     # ~$1     does fusing the dispatch help?
-    modal run modal_app.py::backfill_nll          # ~$0.70  quality for OLMoE + DeepSeek
-    modal run modal_app.py::compiler_breaks       # CPU only, real-model graph breaks
-    modal run modal_app.py::diagnostics           # free-ish, prints the digest
-
-ORDER AND PARALLELISM
-    smoke, probe          independent of everything
-    task1                 MUST run before sweep/replay/deepseek/qwen -- it writes
-                          mmlu_prompts.txt, which they all read
-    sweep, replay         after task1; may run concurrently with each other
-    deepseek, qwen        after task1; safe to run concurrently. Each modal run gets its
-                          own container and GPU, they write different result directories,
-                          and they download into different HF cache subdirectories, which
-                          Modal merges per file. Serialise only to keep a failure cheap to
-                          diagnose, not for correctness
-    diagnostics           last; reloads the volumes before reading
-
-Parallelism is cost-neutral on Modal -- billing is per function-second, so two GPUs for
-30 minutes costs what one costs for 60. The reason to stay sequential is not money, it is
-that a container sees a volume as of MOUNT time: a stage launched before its predecessor
-commits will simply not see the files it needs, and will fail in a way that looks like a
-bug rather than a race.
-
-Pull results down to the laptop:
-
-    modal volume get routingdrift-results / ./results_modal
-
-Costs assume A100-80GB at $2.50/hr and are +/-50%; lm-eval under INT4 is the wildcard.
 """
 
 import modal
 
-REPO = "/root/RoutingDrift"
+REPO = "/root/moe-ceilings"
 RESULTS = "/results"
 GPU = "A100-80GB"
 

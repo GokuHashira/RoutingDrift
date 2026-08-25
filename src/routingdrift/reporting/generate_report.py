@@ -1,5 +1,5 @@
 """
-generate_report.py — RoutingDrift final cross-study report
+generate_report.py — MoE Ceilings final cross-study report
 Reads all CSVs / JSONs from the three sub-studies and generates final
 comparison plots plus a printed recommendation.
 
@@ -541,7 +541,7 @@ def print_recommendation(matrix, methods, criteria, drift_rows, olmoe_amdahl, co
 
     sep="="*70
     print(f"\n{sep}")
-    print("  CROSS-STUDY RECOMMENDATION — RoutingDrift MSML 605")
+    print("  CROSS-STUDY RECOMMENDATION — MoE Ceilings MSML 605")
     print(sep)
 
     print("\n── Triton Kernels ──────────────────────────────────────────────────")

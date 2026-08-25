@@ -1,1 +1,1 @@
-"""RoutingDrift quantization sub-study."""
+"""MoE Ceilings quantization sub-study."""
