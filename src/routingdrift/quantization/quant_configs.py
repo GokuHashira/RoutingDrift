@@ -64,8 +64,14 @@ class QuantConfigSpec:
 
 
 def _int8(threshold: float) -> Callable[[], BitsAndBytesConfig]:
-    # llm_int8_threshold controls which activation outliers are kept in fp16. Lower means
-    # more of the tensor is quantized, so more perturbation reaches the gate.
+    # llm_int8_threshold is the magnitude above which an activation COLUMN is held in fp16
+    # instead of being quantized. Higher means fewer columns qualify, so more of the tensor
+    # is quantized and more perturbation reaches the gate.
+    #
+    # 0.0 is not the low end of that axis: bitsandbytes treats it as "disable the
+    # mixed-precision decomposition" and quantizes every column, making it the most
+    # aggressive of the four settings, not the least. The measured drift agrees --
+    # 3.0 < 6.0 < 12.0 < 0.0 -- which it would not if 0.0 protected the most.
     return lambda: BitsAndBytesConfig(load_in_8bit=True, llm_int8_threshold=threshold)
 
 
@@ -81,7 +87,7 @@ def _fourbit(quant_type: str, double_quant: bool, compute_dtype: torch.dtype) ->
 SWEEP: List[QuantConfigSpec] = [
     QuantConfigSpec("fp16", "Unquantized reference", lambda: None, lever="baseline"),
     # --- INT8, varying how many outliers stay in fp16 -------------------------
-    QuantConfigSpec("int8_t0", "LLM.int8, outlier threshold 0.0", _int8(0.0), lever="int8_threshold"),
+    QuantConfigSpec("int8_t0", "LLM.int8, threshold 0.0 (decomposition disabled)", _int8(0.0), lever="int8_threshold"),
     QuantConfigSpec("int8_t3", "LLM.int8, outlier threshold 3.0", _int8(3.0), lever="int8_threshold"),
     QuantConfigSpec("int8_t6", "LLM.int8, outlier threshold 6.0 (bnb default)", _int8(6.0), lever="int8_threshold"),
     QuantConfigSpec("int8_t12", "LLM.int8, outlier threshold 12.0", _int8(12.0), lever="int8_threshold"),

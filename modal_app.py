@@ -1,7 +1,7 @@
 """
 modal_app.py
 
-RoutingDrift experiment stages on Modal.
+MoE Ceilings experiment stages on Modal.
 
 Why Modal rather than a rented instance: billing is per-second of actual function
 execution, and the workflow here is deliberately stop-and-inspect -- run a stage, read the
@@ -61,7 +61,7 @@ Costs assume A100-80GB at $2.50/hr and are +/-50%; lm-eval under INT4 is the wil
 
 import modal
 
-REPO = "/root/RoutingDrift"
+REPO = "/root/moe-ceilings"
 RESULTS = "/results"
 GPU = "A100-80GB"
 

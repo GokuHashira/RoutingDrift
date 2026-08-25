@@ -3,6 +3,8 @@ report.md
 /HPC_Outputs/
 /hpc_runs/
 /temp/
+/paper/
+/paper-cleaned/
 /tools/**
 !/tools/*.py
 /.pytest_cache/
@@ -36,3 +38,7 @@ report.md
 /results/kernels/olmoe/profile_amdahl.csv
 /results/kernels/olmoe/benchmark_olmoe.csv
 /results/kernels/olmoe/plots
+
+# Figures regenerated at IEEE column width for the paper submission; the committed set
+# under results/paper_figures/ stays the reproducible one.
+paper-figures/

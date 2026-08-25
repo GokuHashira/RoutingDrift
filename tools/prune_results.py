@@ -4,18 +4,6 @@ prune_results.py
 Make a pulled results directory small enough to commit, without losing anything that a
 number depends on.
 
-Two things bloat it:
-
-  * lm-eval writes every individual evaluation sample into its JSON. For MMLU at
-    limit=500 that is ~500 MB per run, against a few KB of actual metrics. The per-sample
-    records are useful for auditing a specific answer and useless for reproducing a score,
-    so they are dropped and the `results` / `configs` / version blocks kept.
-  * Route dumps written before the gzip change sit alongside their .json.gz replacements.
-    In this repo those leftovers are from a run whose MMLU download silently fell back to
-    5 generic prompts, so they are not merely redundant, they are wrong. Nothing reads
-    them, since both readers prefer .json.gz, but they should not be committed next to
-    real data.
-
 Dry run by default; pass --apply to modify.
 
     python tools/prune_results.py --results_dir modal_outputs
