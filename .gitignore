@@ -42,5 +42,3 @@ report.md
 # Figures regenerated at IEEE column width for the paper submission; the committed set
 # under results/paper_figures/ stays the reproducible one.
 paper-figures/
-
-modal_app.py
